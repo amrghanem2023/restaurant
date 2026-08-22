@@ -145,10 +145,14 @@
   .order-card-actions button.danger-action{color:var(--danger); border-color:#fecaca;}
 
   .order-items-picker{border:1px solid var(--border); border-radius:10px; padding:10px; max-height:220px; overflow-y:auto; margin-bottom:12px;}
-  .picker-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px;}
+  .picker-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px; gap:10px;}
   .picker-row:last-child{border-bottom:none;}
   .picker-row .p-name{flex:1;}
   .picker-row .p-price{color:var(--muted); font-size:12px; margin-inline-end:10px;}
+  .picker-thumb{width:44px; height:44px; min-width:44px; border-radius:8px; background:#f0f2f3 center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-size:18px; color:#c9d0d3; cursor:pointer; border:2px solid transparent; transition:border-color .15s, transform .1s;}
+  .picker-thumb:active{transform:scale(0.92);}
+  .picker-thumb.has-qty{border-color:var(--primary);}
+  .picker-thumb.at-max{cursor:not-allowed; opacity:0.5;}
   .qty-control{display:flex; align-items:center; gap:8px;}
   .qty-control button{width:24px; height:24px; border-radius:6px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:14px; line-height:1;}
   .qty-control span{min-width:16px; text-align:center; font-size:13px;}
@@ -428,7 +432,11 @@
     <div id="module-orders" class="module-content" style="display:none;">
       <div class="panel-head" style="margin-bottom:16px;">
         <h3 data-i18n="ordersBoard" style="font-size:16px;">لوحة الطلبات</h3>
-        <button class="btn" onclick="openOrderModal()" data-i18n="addOrder">+ طلب جديد</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline" onclick="printOrders()" data-i18n="print">طباعة</button>
+          <button class="btn btn-outline" onclick="exportOrdersToExcel()" data-i18n="exportExcel">تصدير Excel</button>
+          <button class="btn" onclick="openOrderModal()" data-i18n="addOrder">+ طلب جديد</button>
+        </div>
       </div>
       <div class="orders-board" id="ordersBoard"></div>
     </div>
@@ -469,6 +477,8 @@
         <select id="reportBranchSelect" onchange="onReportFilterChange()">
           <option value="all" data-i18n="allBranches">كل الفروع</option>
         </select>
+        <button class="btn btn-outline" onclick="printReports()" data-i18n="print">طباعة</button>
+        <button class="btn btn-outline" onclick="exportReportsToExcel()" data-i18n="exportExcel">تصدير Excel</button>
       </div>
 
       <div class="cards-grid">
@@ -487,6 +497,14 @@
         <div class="stat-card">
           <div class="label" data-i18n="reportCancelled">الطلبات الملغاة</div>
           <div class="value" id="reportCancelledOrders">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="totalExpenses">إجمالي المصاريف</div>
+          <div class="value" id="reportTotalExpenses">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="netProfit">صافي الربح</div>
+          <div class="value" id="reportNetProfit">0</div>
         </div>
       </div>
 
@@ -513,7 +531,13 @@
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h3 data-i18n="revenueByBranch">الإيرادات حسب الفرع</h3></div>
+        <div class="panel-head">
+          <h3 data-i18n="revenueByBranch">الإيرادات حسب الفرع</h3>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline" onclick="printTable('branchRevenueTable', t('revenueByBranch'))" data-i18n="print">طباعة</button>
+            <button class="btn btn-outline" onclick="exportTableToExcel('branchRevenueTable', t('revenueByBranch'))" data-i18n="exportExcel">تصدير Excel</button>
+          </div>
+        </div>
         <div id="branchRevenueWrap">
           <div class="empty-state" id="branchRevenueEmpty">
             <div class="icon">🏢</div>
@@ -588,6 +612,7 @@
         <button class="tab-btn active" data-invtab="ingredients" onclick="switchInventoryTab('ingredients')" data-i18n="tabIngredients">المكونات والمخزون</button>
         <button class="tab-btn" data-invtab="suppliers" onclick="switchInventoryTab('suppliers')" data-i18n="tabSuppliers">الموردين</button>
         <button class="tab-btn" data-invtab="purchaseOrders" onclick="switchInventoryTab('purchaseOrders')" data-i18n="tabPurchaseOrders">أوامر الشراء</button>
+        <button class="tab-btn" data-invtab="expenses" onclick="switchInventoryTab('expenses')" data-i18n="tabExpenses">المصروفات العامة</button>
       </div>
 
       <!-- Ingredients Tab -->
@@ -595,7 +620,11 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="ingredientList">قائمة المكونات</h3>
-            <button class="btn" onclick="openIngredientModal()" data-i18n="addIngredient">+ إضافة مكوّن</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="printTable('ingredientsTable', t('ingredientList'))" data-i18n="print">طباعة</button>
+              <button class="btn btn-outline" onclick="exportTableToExcel('ingredientsTable', t('ingredientList'))" data-i18n="exportExcel">تصدير Excel</button>
+              <button class="btn" onclick="openIngredientModal()" data-i18n="addIngredient">+ إضافة مكوّن</button>
+            </div>
           </div>
           <div id="ingredientsTableWrap">
             <div class="empty-state" id="ingredientsEmpty">
@@ -650,7 +679,12 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="supplierList">قائمة الموردين</h3>
-            <button class="btn" onclick="openSupplierModal()" data-i18n="addSupplier">+ إضافة مورد</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-outline" onclick="printTable('suppliersTable', t('supplierList'))" data-i18n="print">طباعة</button>
+              <button class="btn btn-outline" onclick="exportTableToExcel('suppliersTable', t('supplierList'))" data-i18n="exportExcel">تصدير Excel</button>
+              <button class="btn btn-outline" onclick="cleanupDuplicateSuppliers()" data-i18n="cleanupDuplicates">تنظيف المكرر</button>
+              <button class="btn" onclick="openSupplierModal()" data-i18n="addSupplier">+ إضافة مورد</button>
+            </div>
           </div>
           <div id="suppliersTableWrap">
             <div class="empty-state" id="suppliersEmpty">
@@ -677,7 +711,11 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="poList">أوامر الشراء</h3>
-            <button class="btn" onclick="openPOModal()" data-i18n="addPO">+ أمر شراء جديد</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="printTable('poTable', t('poList'))" data-i18n="print">طباعة</button>
+              <button class="btn btn-outline" onclick="exportTableToExcel('poTable', t('poList'))" data-i18n="exportExcel">تصدير Excel</button>
+              <button class="btn" onclick="openPOModal()" data-i18n="addPO">+ أمر شراء جديد</button>
+            </div>
           </div>
           <div id="poTableWrap">
             <div class="empty-state" id="poEmpty">
@@ -695,6 +733,53 @@
                 </tr>
               </thead>
               <tbody id="poTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- General Expenses Tab (electricity, salaries, taxes, rent, etc — per branch) -->
+      <div class="tab-pane" id="invTab-expenses">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="expenseList">المصروفات العامة</h3>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-outline" onclick="printTable('expensesTable', t('expenseList'))" data-i18n="print">طباعة</button>
+              <button class="btn btn-outline" onclick="exportTableToExcel('expensesTable', t('expenseList'))" data-i18n="exportExcel">تصدير Excel</button>
+              <button class="btn" onclick="openExpenseModal()" data-i18n="addExpense">+ إضافة مصروف</button>
+            </div>
+          </div>
+          <div class="report-filters" style="margin-bottom:14px;">
+            <select id="expenseBranchFilter" onchange="renderExpensesTable()">
+              <option value="all" data-i18n="allBranches">كل الفروع</option>
+            </select>
+            <select id="expenseCategoryFilter" onchange="renderExpensesTable()">
+              <option value="all" data-i18n="allCategories">كل الفئات</option>
+              <option value="electricity" data-i18n="cat_electricity">كهرباء</option>
+              <option value="salaries" data-i18n="cat_salaries">مرتبات</option>
+              <option value="taxes" data-i18n="cat_taxes">ضرائب</option>
+              <option value="rent" data-i18n="cat_rent">إيجار</option>
+              <option value="maintenance" data-i18n="cat_maintenance">صيانة</option>
+              <option value="other" data-i18n="cat_other">أخرى</option>
+            </select>
+          </div>
+          <div id="expensesTableWrap">
+            <div class="empty-state" id="expensesEmpty">
+              <div class="icon">💸</div>
+              <p data-i18n="noExpensesYet">لا توجد مصروفات مسجّلة بعد</p>
+            </div>
+            <table id="expensesTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colDate">التاريخ</th>
+                  <th data-i18n="colCategory">الفئة</th>
+                  <th data-i18n="colBranch">الفرع</th>
+                  <th data-i18n="colAmount">المبلغ</th>
+                  <th data-i18n="colNotes">ملاحظات</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="expensesTbody"></tbody>
             </table>
           </div>
         </div>
@@ -1086,6 +1171,44 @@
   </div>
 </div>
 
+<!-- General Expense Modal -->
+<div class="modal-overlay" id="expenseModal">
+  <div class="modal">
+    <h3 id="expenseModalTitle" data-i18n="addExpense">إضافة مصروف</h3>
+    <div class="field">
+      <label data-i18n="colBranch">الفرع</label>
+      <select id="expenseBranchInput"></select>
+    </div>
+    <div class="field">
+      <label data-i18n="colCategory">الفئة</label>
+      <select id="expenseCategoryInput">
+        <option value="electricity" data-i18n="cat_electricity">كهرباء</option>
+        <option value="salaries" data-i18n="cat_salaries">مرتبات</option>
+        <option value="taxes" data-i18n="cat_taxes">ضرائب</option>
+        <option value="rent" data-i18n="cat_rent">إيجار</option>
+        <option value="maintenance" data-i18n="cat_maintenance">صيانة</option>
+        <option value="other" data-i18n="cat_other">أخرى</option>
+      </select>
+    </div>
+    <div class="field">
+      <label data-i18n="colAmount">المبلغ</label>
+      <input type="number" id="expenseAmountInput" placeholder="1000" min="0" step="0.01">
+    </div>
+    <div class="field">
+      <label data-i18n="colDate">التاريخ</label>
+      <input type="date" id="expenseDateInput">
+    </div>
+    <div class="field">
+      <label data-i18n="colNotes">ملاحظات (اختياري)</label>
+      <textarea id="expenseNotesInput" rows="2" style="width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeExpenseModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveExpense()" id="saveExpenseBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
 <!-- Purchase Order Modal -->
 <div class="modal-overlay" id="poModal">
   <div class="modal" style="max-width:460px;">
@@ -1290,7 +1413,22 @@ const translations = {
     unlimitedStock:"غير محدود (لا يوجد وصفة مرتبطة)", zeroStockProduct:"غير متاح — نفد أحد المكونات",
     bottleneckIngredient:"المكوّن المحدِّد", confirmReadyShortage:"هذا الطلب يحتاج مكونات ناقصة عن المخزون المتاح. هل تريد المتابعة رغم ذلك؟",
     stockCannotBeNegative:"لا يمكن أن يكون المخزون رقمًا سالبًا — تم ضبطه على صفر",
-    statLowStock:"نواقص المخزون", clickToReview:"اضغط للمراجعة"
+    statLowStock:"نواقص المخزون", clickToReview:"اضغط للمراجعة",
+    saving:"جاري الحفظ...",
+    duplicateSupplierWarning:"يوجد مورد بنفس الاسم ورقم الهاتف بالفعل — هل تريد الإضافة رغم ذلك؟",
+    cleanupDuplicates:"تنظيف المكرر", noDuplicatesFound:"لا يوجد موردين مكررين",
+    mergeDuplicatesConfirm:"هيتم حذف {count} من النسخ المكررة وترك نسخة واحدة لكل مورد. متابعة؟",
+    duplicatesRemoved:"تم حذف {count} نسخة مكررة",
+    tabExpenses:"المصروفات العامة", expenseList:"المصروفات العامة", addExpense:"+ إضافة مصروف", editExpense:"تعديل مصروف",
+    colCategory:"الفئة", colAmount:"المبلغ", colDate:"التاريخ", colNotes:"ملاحظات",
+    allCategories:"كل الفئات",
+    cat_electricity:"كهرباء", cat_salaries:"مرتبات", cat_taxes:"ضرائب", cat_rent:"إيجار", cat_maintenance:"صيانة", cat_other:"أخرى",
+    noExpensesYet:"لا توجد مصروفات مسجّلة بعد", expenseSaved:"تم حفظ المصروف", expenseDeleted:"تم حذف المصروف",
+    selectBranchFirst:"اختر الفرع أولاً",
+    totalExpenses:"إجمالي المصاريف", netProfit:"صافي الربح",
+    tapToAdd:"اضغط لإضافة قطعة",
+    nothingToExport:"لا توجد بيانات لتصديرها", orderItemsSummary:"الأصناف",
+    exportExcel:"تصدير Excel", print:"طباعة"
   },
   en: {
     loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
@@ -1397,7 +1535,22 @@ const translations = {
     unlimitedStock:"Unlimited (no recipe linked)", zeroStockProduct:"Unavailable — an ingredient is out of stock",
     bottleneckIngredient:"Limiting ingredient", confirmReadyShortage:"This order needs more of some ingredients than is currently in stock. Continue anyway?",
     stockCannotBeNegative:"Stock can't be negative — it was set to zero",
-    statLowStock:"Low Stock Items", clickToReview:"Click to review"
+    statLowStock:"Low Stock Items", clickToReview:"Click to review",
+    saving:"Saving...",
+    duplicateSupplierWarning:"A supplier with the same name and phone already exists — add anyway?",
+    cleanupDuplicates:"Clean up duplicates", noDuplicatesFound:"No duplicate suppliers found",
+    mergeDuplicatesConfirm:"This will delete {count} duplicate entries and keep one copy of each supplier. Continue?",
+    duplicatesRemoved:"Removed {count} duplicate entries",
+    tabExpenses:"General Expenses", expenseList:"General Expenses", addExpense:"+ Add Expense", editExpense:"Edit Expense",
+    colCategory:"Category", colAmount:"Amount", colDate:"Date", colNotes:"Notes",
+    allCategories:"All Categories",
+    cat_electricity:"Electricity", cat_salaries:"Salaries", cat_taxes:"Taxes", cat_rent:"Rent", cat_maintenance:"Maintenance", cat_other:"Other",
+    noExpensesYet:"No expenses recorded yet", expenseSaved:"Expense saved", expenseDeleted:"Expense deleted",
+    selectBranchFirst:"Select a branch first",
+    totalExpenses:"Total Expenses", netProfit:"Net Profit",
+    tapToAdd:"Tap to add one",
+    nothingToExport:"No data to export", orderItemsSummary:"Items",
+    exportExcel:"Export Excel", print:"Print"
   }
 };
 
@@ -1490,6 +1643,7 @@ auth.onAuthStateChanged(async (user)=>{
     await loadIngredients();
     await loadSuppliers();
     await loadPurchaseOrders();
+    await loadExpenses();
     startOrdersListener();
   } else {
     currentUser = null;
@@ -1574,6 +1728,8 @@ function updateBranchFilterOptions(){
       branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
     reportSel.value = currentR && [...reportSel.options].some(o=>o.value===currentR) ? currentR : 'all';
   }
+
+  populateExpenseBranchSelects();
 }
 
 function openBranchModal(branchId){
@@ -1644,6 +1800,110 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+/* ---------- Export to Excel & Print (generic, reused across modules) ----------
+   Excel export works by wrapping the table's HTML in an Excel-readable HTML shell
+   (application/vnd.ms-excel) — this opens natively in Excel/Google Sheets with a
+   UTF-8 BOM so Arabic text displays correctly, no external library needed.
+   Print opens a clean popup with just the table and calls window.print(). */
+function exportTableToExcel(tableId, filename){
+  const table = document.getElementById(tableId);
+  if(!table || table.style.display === 'none'){
+    showToast(t('nothingToExport'));
+    return;
+  }
+  const html = `<html><head><meta charset="UTF-8"></head><body dir="${currentLang==='ar'?'rtl':'ltr'}">${table.outerHTML}</body></html>`;
+  const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename.endsWith('.xls') ? filename : filename + '.xls';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function printTable(tableId, titleText){
+  const table = document.getElementById(tableId);
+  if(!table || table.style.display === 'none'){
+    showToast(t('nothingToExport'));
+    return;
+  }
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><meta charset="UTF-8"><title>${escapeHtml(titleText)}</title>
+    <style>
+      body{font-family:Arial, sans-serif; padding:20px; direction:${currentLang==='ar'?'rtl':'ltr'};}
+      h2{margin-bottom:16px;}
+      table{width:100%; border-collapse:collapse; font-size:13px;}
+      th, td{border:1px solid #ccc; padding:8px; text-align:${currentLang==='ar'?'right':'left'};}
+      th{background:#f0f2f3;}
+    </style>
+  </head><body>
+    <h2>${escapeHtml(titleText)}</h2>
+    ${table.outerHTML}
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 300);
+}
+
+// Builds a temporary, hidden table from an array of {label} column headers and row arrays,
+// so modules whose data isn't already in a visible <table> (Orders board, Reports summary)
+// can still use exportTableToExcel()/printTable() against a real element.
+function buildTempExportTable(id, headers, rows){
+  let el = document.getElementById(id);
+  if(!el){
+    el = document.createElement('table');
+    el.id = id;
+    el.style.display = 'none';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=> `<tr>${r.map(c=>`<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  el.style.display = 'table'; // must not be display:none for outerHTML export to be considered valid
+  return el;
+}
+
+function exportOrdersToExcel(){
+  buildTempOrdersTable();
+  exportTableToExcel('ordersExportTable', t('nav_orders'));
+}
+function printOrders(){
+  buildTempOrdersTable();
+  printTable('ordersExportTable', t('nav_orders'));
+}
+function buildTempOrdersTable(){
+  const rows = ordersCache.map(o=>{
+    const itemsSummary = (o.items||[]).map(it=> `${it.name} x${it.qty}`).join(', ');
+    const dateStr = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+    return [dateStr, branchNameById(o.branchId), itemsSummary, Number(o.total||0).toFixed(2), t('status_'+(o.status||'pending'))];
+  });
+  buildTempExportTable('ordersExportTable', [t('colDate'), t('colBranch'), t('orderItemsSummary'), t('colTotal'), t('colStatus')], rows);
+}
+
+function exportReportsToExcel(){
+  buildTempReportsTable();
+  exportTableToExcel('reportsExportTable', t('nav_reports'));
+}
+function printReports(){
+  buildTempReportsTable();
+  printTable('reportsExportTable', t('nav_reports'));
+}
+function buildTempReportsTable(){
+  const filtered = getReportFilteredOrders();
+  const validOrders = filtered.filter(o=> o.status !== 'cancelled');
+  const totalRevenue = validOrders.reduce((sum,o)=> sum + (o.total||0), 0);
+  const avgOrder = validOrders.length ? totalRevenue / validOrders.length : 0;
+  const totalExpenses = getReportFilteredExpenses().reduce((sum,e)=> sum + (e.amount||0), 0);
+  const rows = [
+    [t('reportTotalOrders'), filtered.length],
+    [t('reportTotalRevenue'), totalRevenue.toFixed(2)],
+    [t('reportAvgOrder'), avgOrder.toFixed(2)],
+    [t('reportCancelled'), filtered.filter(o=>o.status==='cancelled').length],
+    [t('totalExpenses'), totalExpenses.toFixed(2)],
+    [t('netProfit'), (totalRevenue - totalExpenses).toFixed(2)]
+  ];
+  buildTempExportTable('reportsExportTable', [t('colName'), t('colAmount')], rows);
+}
+
 /* ---------- Menu Tabs ---------- */
 function switchMenuTab(tab){
   document.querySelectorAll('#module-menu .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
@@ -1656,6 +1916,7 @@ function switchInventoryTab(tab){
   document.querySelectorAll('#module-inventory .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.invtab===tab));
   document.querySelectorAll('#module-inventory .tab-pane').forEach(p=> p.classList.remove('active'));
   document.getElementById('invTab-'+tab).classList.add('active');
+  if(tab === 'expenses') renderExpensesTable();
 }
 
 /* ---------- Categories (Firestore: restaurants/{rid}/categories/{categoryId}) ---------- */
@@ -2262,7 +2523,14 @@ function renderOrderItemsPicker(){
     const maxLabel = isFinite(max)
       ? `<div class="p-max-stock" style="font-size:11px; color:${max===0?'var(--danger)':'var(--muted)'}; margin-top:2px;">${max===0 ? t('zeroStockProduct') : `${t('maxAvailableShort')}: ${max}`}${bottleneck && max<=3 ? ` (${escapeHtml(bottleneck)})` : ''}</div>`
       : '';
+    // Tappable thumbnail — tapping the product image adds one unit, same as the "+"
+    // button, so staff can build an order by tapping photos instead of typing quantities.
+    const thumbStyle = p.imageUrl ? `background-image:url('${p.imageUrl}')` : '';
+    const thumbClasses = ['picker-thumb', qty>0 ? 'has-qty' : '', atMax ? 'at-max' : ''].filter(Boolean).join(' ');
+    const thumbContent = p.imageUrl ? '' : '🍽️';
+    const thumbHtml = `<div class="${thumbClasses}" style="${thumbStyle}" onclick="tapAddOrderItem('${p.id}')" title="${t('tapToAdd')}">${thumbContent}</div>`;
     return `<div class="picker-row">
+      ${thumbHtml}
       <div style="flex:1; min-width:0;">
         <span class="p-name">${escapeHtml(name)}</span>
         ${maxLabel}
@@ -2275,6 +2543,12 @@ function renderOrderItemsPicker(){
       </div>
     </div>`;
   }).join('');
+}
+
+// Tapping the product photo is a shortcut for the "+" button — same stock-ceiling rules
+// apply, so it can never add more than changeOrderItemQty would allow manually.
+function tapAddOrderItem(productId){
+  changeOrderItemQty(productId, 1);
 }
 
 function changeOrderItemQty(productId, delta){
@@ -2737,15 +3011,37 @@ function renderReports(){
 
   const totalRevenue = validOrders.reduce((sum,o)=> sum + (o.total||0), 0);
   const avgOrder = validOrders.length ? totalRevenue / validOrders.length : 0;
+  const totalExpenses = getReportFilteredExpenses().reduce((sum,e)=> sum + (e.amount||0), 0);
+  const netProfit = totalRevenue - totalExpenses;
 
   document.getElementById('reportTotalOrders').textContent = filtered.length;
   document.getElementById('reportTotalRevenue').textContent = totalRevenue.toFixed(2);
   document.getElementById('reportAvgOrder').textContent = avgOrder.toFixed(2);
   document.getElementById('reportCancelledOrders').textContent = cancelledOrders.length;
+  document.getElementById('reportTotalExpenses').textContent = totalExpenses.toFixed(2);
+  const netProfitEl = document.getElementById('reportNetProfit');
+  netProfitEl.textContent = netProfit.toFixed(2);
+  netProfitEl.style.color = netProfit < 0 ? 'var(--danger)' : 'var(--primary-dark)';
 
   renderRevenueChart(validOrders);
   renderTopProducts(validOrders);
   renderBranchRevenue(validOrders);
+}
+
+// Same period + branch filtering as getReportFilteredOrders(), applied to expenses so the
+// net profit figure reflects the same window the person is looking at.
+function getReportFilteredExpenses(){
+  const days = parseInt(document.getElementById('reportPeriodSelect')?.value || '7');
+  const branchId = document.getElementById('reportBranchSelect')?.value || 'all';
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffKey = cutoff.toISOString().slice(0,10);
+
+  return expensesCache.filter(e=>{
+    if(!e.date || e.date < cutoffKey) return false;
+    if(branchId !== 'all' && e.branchId !== branchId) return false;
+    return true;
+  });
 }
 
 function renderRevenueChart(orders){
@@ -3300,8 +3596,19 @@ async function saveSupplier(){
 
   if(!name){ showToast(t('fillRequired')); return; }
 
+  // Guard against accidental duplicate entries — e.g. tapping "Save" more than once on a
+  // slow connection without realizing the first tap already went through.
+  if(!editingSupplierId){
+    const dup = suppliersCache.find(s=> s.name.trim().toLowerCase() === name.toLowerCase() && (s.phone||'').trim() === phone);
+    if(dup && !confirm(t('duplicateSupplierWarning'))){
+      return;
+    }
+  }
+
   const saveBtn = document.getElementById('saveSupplierBtn');
   saveBtn.disabled = true;
+  const originalLabel = saveBtn.textContent;
+  saveBtn.textContent = t('saving');
   try{
     const data = { name, contactPerson, phone, notes };
     if(editingSupplierId){
@@ -3317,6 +3624,40 @@ async function saveSupplier(){
     showToast(e.message);
   }finally{
     saveBtn.disabled = false;
+    saveBtn.textContent = originalLabel;
+  }
+}
+
+// Finds suppliers that share the same name + phone and lets the user remove the extra
+// copies in one action, instead of deleting each duplicate row by hand.
+async function cleanupDuplicateSuppliers(){
+  const groups = {};
+  suppliersCache.forEach(s=>{
+    const key = (s.name||'').trim().toLowerCase() + '|' + (s.phone||'').trim();
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(s);
+  });
+  const duplicateGroups = Object.values(groups).filter(g=> g.length > 1);
+  if(duplicateGroups.length === 0){
+    showToast(t('noDuplicatesFound'));
+    return;
+  }
+  const totalExtra = duplicateGroups.reduce((sum,g)=> sum + (g.length - 1), 0);
+  if(!confirm(t('mergeDuplicatesConfirm').replace('{count}', totalExtra))) return;
+
+  try{
+    const batch = db.batch();
+    duplicateGroups.forEach(g=>{
+      // Keep the oldest entry (suppliersCache is ordered by createdAt desc, so the last
+      // item in each group is the earliest), delete the rest.
+      g.slice(0, -1).forEach(s=> batch.delete(suppliersCol().doc(s.id)));
+    });
+    await batch.commit();
+    showToast(t('duplicatesRemoved').replace('{count}', totalExtra));
+    await loadSuppliers();
+  }catch(e){
+    console.error('cleanupDuplicateSuppliers error', e);
+    showToast(e.message);
   }
 }
 
@@ -3328,6 +3669,148 @@ async function deleteSupplier(supplierId){
     await loadSuppliers();
   }catch(e){
     console.error('deleteSupplier error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- General Expenses (Firestore: restaurants/{rid}/expenses/{expenseId}) ----------
+   Recurring/one-off business costs (electricity, salaries, taxes, rent, maintenance, other)
+   tracked per branch. Feeds into the net profit figure in Reports. */
+let expensesCache = [];
+let editingExpenseId = null;
+
+function expensesCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('expenses');
+}
+
+async function loadExpenses(){
+  try{
+    const snap = await expensesCol().orderBy('date','desc').get();
+    expensesCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    populateExpenseBranchSelects();
+    renderExpensesTable();
+    renderReports(); // expenses affect net profit shown in Reports
+  }catch(e){
+    console.error('loadExpenses error', e);
+  }
+}
+
+function populateExpenseBranchSelects(){
+  const modalSel = document.getElementById('expenseBranchInput');
+  const filterSel = document.getElementById('expenseBranchFilter');
+  if(modalSel){
+    modalSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+  }
+  if(filterSel){
+    const current = filterSel.value;
+    filterSel.innerHTML = `<option value="all">${t('allBranches')}</option>` +
+      branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+    filterSel.value = current && [...filterSel.options].some(o=>o.value===current) ? current : 'all';
+  }
+}
+
+function branchNameById(branchId){
+  const b = branchesCache.find(x=> x.id === branchId);
+  return b ? b.name : '—';
+}
+
+function renderExpensesTable(){
+  const table = document.getElementById('expensesTable');
+  const empty = document.getElementById('expensesEmpty');
+  const tbody = document.getElementById('expensesTbody');
+  if(!table) return;
+
+  const branchFilter = document.getElementById('expenseBranchFilter')?.value || 'all';
+  const categoryFilter = document.getElementById('expenseCategoryFilter')?.value || 'all';
+  const filtered = expensesCache.filter(e=>
+    (branchFilter === 'all' || e.branchId === branchFilter) &&
+    (categoryFilter === 'all' || e.category === categoryFilter)
+  );
+
+  if(filtered.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = filtered.map(e=> `<tr>
+    <td>${escapeHtml(e.date||'')}</td>
+    <td>${t('cat_'+e.category)}</td>
+    <td>${escapeHtml(branchNameById(e.branchId))}</td>
+    <td>${Number(e.amount||0).toFixed(2)}</td>
+    <td>${escapeHtml(e.notes||'—')}</td>
+    <td class="row-actions">
+      <button onclick="openExpenseModal('${e.id}')" title="${t('edit')}">✏️</button>
+      <button onclick="deleteExpense('${e.id}')" title="${t('delete')}">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openExpenseModal(expenseId){
+  editingExpenseId = expenseId || null;
+  populateExpenseBranchSelects();
+  document.getElementById('expenseModalTitle').textContent = expenseId ? t('editExpense') : t('addExpense');
+  if(expenseId){
+    const e = expensesCache.find(x=> x.id === expenseId);
+    document.getElementById('expenseBranchInput').value = e.branchId || '';
+    document.getElementById('expenseCategoryInput').value = e.category || 'other';
+    document.getElementById('expenseAmountInput').value = e.amount || '';
+    document.getElementById('expenseDateInput').value = e.date || '';
+    document.getElementById('expenseNotesInput').value = e.notes || '';
+  } else {
+    document.getElementById('expenseCategoryInput').value = 'electricity';
+    document.getElementById('expenseAmountInput').value = '';
+    document.getElementById('expenseDateInput').value = new Date().toISOString().slice(0,10);
+    document.getElementById('expenseNotesInput').value = '';
+  }
+  document.getElementById('expenseModal').classList.add('active');
+}
+
+function closeExpenseModal(){
+  document.getElementById('expenseModal').classList.remove('active');
+}
+
+async function saveExpense(){
+  const branchId = document.getElementById('expenseBranchInput').value;
+  const category = document.getElementById('expenseCategoryInput').value;
+  const amount = Math.max(0, parseFloat(document.getElementById('expenseAmountInput').value) || 0);
+  const date = document.getElementById('expenseDateInput').value;
+  const notes = document.getElementById('expenseNotesInput').value.trim();
+
+  if(!branchId){ showToast(t('selectBranchFirst')); return; }
+  if(!date || amount <= 0){ showToast(t('fillRequired')); return; }
+
+  const saveBtn = document.getElementById('saveExpenseBtn');
+  saveBtn.disabled = true;
+  const originalLabel = saveBtn.textContent;
+  saveBtn.textContent = t('saving');
+  try{
+    const data = { branchId, category, amount, date, notes };
+    if(editingExpenseId){
+      await expensesCol().doc(editingExpenseId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await expensesCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeExpenseModal();
+    showToast(t('expenseSaved'));
+    await loadExpenses();
+  }catch(e){
+    console.error('saveExpense error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalLabel;
+  }
+}
+
+async function deleteExpense(expenseId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await expensesCol().doc(expenseId).delete();
+    showToast(t('expenseDeleted'));
+    await loadExpenses();
+  }catch(e){
+    console.error('deleteExpense error', e);
     showToast(e.message);
   }
 }
