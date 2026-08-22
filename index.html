@@ -311,6 +311,9 @@
     <div class="nav-item" data-module="inventory" onclick="showModule('inventory')">
       <span class="nav-icon">📦</span><span data-i18n="nav_inventory">المخزون والتكاليف</span>
     </div>
+    <div class="nav-item" data-module="settings" onclick="showModule('settings')">
+      <span class="nav-icon">⚙️</span><span data-i18n="nav_settings">الإعدادات والبيانات</span>
+    </div>
     <div class="sidebar-footer">
       <button onclick="doLogout()" data-i18n="logout">تسجيل الخروج</button>
     </div>
@@ -795,6 +798,34 @@
             </table>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Settings & Data Module: backup, restore, and wipe data -->
+    <div id="module-settings" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="settingsBackupTitle">نسخة احتياطية</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="settingsBackupDesc">تنزيل نسخة كاملة من كل بيانات المطعم (الفروع، المنتجات، الطلبات، المخزون، الموردين، المصروفات...) كملف JSON واحد على جهازك.</p>
+        <button class="btn" onclick="backupAllData()" data-i18n="downloadBackup">⬇️ تنزيل نسخة احتياطية</button>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <div class="panel-head">
+          <h3 data-i18n="settingsRestoreTitle">استعادة البيانات</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="settingsRestoreDesc">استعادة البيانات من ملف نسخة احتياطية سابق. تحذير: هذا سيستبدل كل البيانات الحالية بالكامل بمحتوى الملف.</p>
+        <input type="file" id="restoreFileInput" accept="application/json" style="margin-bottom:12px; display:block;">
+        <button class="btn btn-outline" onclick="restoreAllData()" data-i18n="restoreData">⬆️ استعادة من ملف</button>
+      </div>
+
+      <div class="panel" style="margin-top:20px; border:1px solid var(--danger);">
+        <div class="panel-head">
+          <h3 style="color:var(--danger);" data-i18n="settingsDangerTitle">منطقة الخطر</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="settingsClearDesc">مسح كل بيانات المطعم نهائيًا (الفروع، المنتجات، الطلبات، المخزون، الموردين، المصروفات، القوائم...). هذا الإجراء لا يمكن التراجع عنه — يُنصح بتنزيل نسخة احتياطية أولاً.</p>
+        <button class="btn" style="background:var(--danger);" onclick="clearAllData()" data-i18n="clearAllData">🗑️ مسح كافة البيانات</button>
       </div>
     </div>
   </main>
@@ -1440,7 +1471,26 @@ const translations = {
     totalExpenses:"إجمالي المصاريف", netProfit:"صافي الربح",
     tapToAdd:"اضغط لإضافة قطعة",
     nothingToExport:"لا توجد بيانات لتصديرها", orderItemsSummary:"الأصناف",
-    exportExcel:"تصدير Excel", print:"طباعة"
+    exportExcel:"تصدير Excel", print:"طباعة",
+    nav_settings:"الإعدادات والبيانات",
+    settingsBackupTitle:"نسخة احتياطية", settingsBackupDesc:"تنزيل نسخة كاملة من كل بيانات المطعم (الفروع، المنتجات، الطلبات، المخزون، الموردين، المصروفات...) كملف JSON واحد على جهازك.",
+    downloadBackup:"⬇️ تنزيل نسخة احتياطية",
+    settingsRestoreTitle:"استعادة البيانات", settingsRestoreDesc:"استعادة البيانات من ملف نسخة احتياطية سابق. تحذير: هذا سيستبدل كل البيانات الحالية بالكامل بمحتوى الملف.",
+    restoreData:"⬆️ استعادة من ملف",
+    settingsDangerTitle:"منطقة الخطر", settingsClearDesc:"مسح كل بيانات المطعم نهائيًا (الفروع، المنتجات، الطلبات، المخزون، الموردين، المصروفات، القوائم...). هذا الإجراء لا يمكن التراجع عنه — يُنصح بتنزيل نسخة احتياطية أولاً.",
+    clearAllData:"🗑️ مسح كافة البيانات",
+    preparingBackup:"جاري تجهيز النسخة الاحتياطية...", backupReady:"تم تنزيل النسخة الاحتياطية بنجاح",
+    chooseBackupFile:"اختر ملف نسخة احتياطية أولاً", invalidBackupFile:"ملف غير صالح — تأكد إنه ملف نسخة احتياطية صحيح",
+    confirmRestoreOverwrite:"هذا سيحذف كل البيانات الحالية ويستبدلها بمحتوى الملف. هل أنت متأكد؟",
+    confirmRestoreFinal:"تأكيد أخير: هذا الإجراء لا يمكن التراجع عنه. متابعة الاستعادة؟",
+    restoringData:"جاري استعادة البيانات... برجاء الانتظار",
+    restoreComplete:"تم استعادة البيانات بنجاح", restoreFailed:"فشلت عملية الاستعادة",
+    confirmClearWarning:"تحذير: هذا سيمسح كل بيانات المطعم نهائيًا ولا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟",
+    confirmClearBackupFirst:"هل تريد المتابعة بدون تنزيل نسخة احتياطية أولاً؟ يُنصح بشدة بتنزيل نسخة احتياطية قبل المسح.",
+    typeToConfirmClear:"للتأكيد، اكتب كلمة \"حذف\" بالضبط في المربع التالي:",
+    clearConfirmPhrase:"حذف",
+    clearCancelled:"تم إلغاء عملية المسح", clearingData:"جاري مسح البيانات...",
+    dataCleared:"تم مسح جميع البيانات", clearFailed:"فشلت عملية المسح"
   },
   en: {
     loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
@@ -1562,7 +1612,26 @@ const translations = {
     totalExpenses:"Total Expenses", netProfit:"Net Profit",
     tapToAdd:"Tap to add one",
     nothingToExport:"No data to export", orderItemsSummary:"Items",
-    exportExcel:"Export Excel", print:"Print"
+    exportExcel:"Export Excel", print:"Print",
+    nav_settings:"Settings & Data",
+    settingsBackupTitle:"Backup", settingsBackupDesc:"Download a complete backup of all restaurant data (branches, products, orders, inventory, suppliers, expenses...) as a single JSON file to your device.",
+    downloadBackup:"⬇️ Download Backup",
+    settingsRestoreTitle:"Restore Data", settingsRestoreDesc:"Restore data from a previous backup file. Warning: this will completely replace all current data with the file's contents.",
+    restoreData:"⬆️ Restore From File",
+    settingsDangerTitle:"Danger Zone", settingsClearDesc:"Permanently delete all restaurant data (branches, products, orders, inventory, suppliers, expenses, menus...). This action cannot be undone — downloading a backup first is strongly recommended.",
+    clearAllData:"🗑️ Clear All Data",
+    preparingBackup:"Preparing backup...", backupReady:"Backup downloaded successfully",
+    chooseBackupFile:"Choose a backup file first", invalidBackupFile:"Invalid file — make sure it's a valid backup file",
+    confirmRestoreOverwrite:"This will delete all current data and replace it with the file's contents. Are you sure?",
+    confirmRestoreFinal:"Final confirmation: this action cannot be undone. Continue with restore?",
+    restoringData:"Restoring data... please wait",
+    restoreComplete:"Data restored successfully", restoreFailed:"Restore failed",
+    confirmClearWarning:"Warning: this will permanently delete all restaurant data and cannot be undone. Are you sure?",
+    confirmClearBackupFirst:"Continue without downloading a backup first? A backup is strongly recommended before clearing.",
+    typeToConfirmClear:"To confirm, type the word \"DELETE\" exactly in the box below:",
+    clearConfirmPhrase:"DELETE",
+    clearCancelled:"Clear operation cancelled", clearingData:"Clearing data...",
+    dataCleared:"All data has been cleared", clearFailed:"Clear operation failed"
   }
 };
 
@@ -4021,6 +4090,183 @@ async function deletePO(poId){
   }catch(e){
     console.error('deletePO error', e);
     showToast(e.message);
+  }
+}
+
+/* ---------- Settings: Backup / Restore / Clear all data ----------
+   Every collection under restaurants/{rid}/... in one place so backup, restore and wipe
+   all stay in sync when a new module/collection is added later. */
+const ALL_DATA_COLLECTIONS = [
+  { key:'branches', col:branchesCol },
+  { key:'categories', col:categoriesCol },
+  { key:'products', col:productsCol },
+  { key:'orders', col:ordersCol },
+  { key:'staff', col:staffCol },
+  { key:'coupons', col:couponsCol },
+  { key:'notifications', col:notificationsCol },
+  { key:'ingredients', col:ingredientsCol },
+  { key:'suppliers', col:suppliersCol },
+  { key:'expenses', col:expensesCol },
+  { key:'purchaseOrders', col:poCol }
+];
+
+// Firestore Timestamp fields don't survive JSON.stringify/parse directly — serialize them
+// to a tagged {__ts: isoString} shape on export, and reverse it on import.
+function serializeFirestoreValue(v){
+  if(v && typeof v.toDate === 'function') return { __ts: v.toDate().toISOString() };
+  if(Array.isArray(v)) return v.map(serializeFirestoreValue);
+  if(v && typeof v === 'object'){
+    const out = {};
+    Object.entries(v).forEach(([k,val])=> out[k] = serializeFirestoreValue(val));
+    return out;
+  }
+  return v;
+}
+function deserializeFirestoreValue(v){
+  if(v && typeof v === 'object' && v.__ts){
+    return firebase.firestore.Timestamp.fromDate(new Date(v.__ts));
+  }
+  if(Array.isArray(v)) return v.map(deserializeFirestoreValue);
+  if(v && typeof v === 'object'){
+    const out = {};
+    Object.entries(v).forEach(([k,val])=> out[k] = deserializeFirestoreValue(val));
+    return out;
+  }
+  return v;
+}
+
+function downloadJSON(obj, filename){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type:'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+async function backupAllData(){
+  try{
+    showToast(t('preparingBackup'));
+    const collectionsData = {};
+    for(const { key, col } of ALL_DATA_COLLECTIONS){
+      const snap = await col().get();
+      collectionsData[key] = snap.docs.map(d=> ({ id:d.id, ...serializeFirestoreValue(d.data()) }));
+    }
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      restaurantId: currentRestaurantId,
+      collections: collectionsData
+    };
+    const dateTag = new Date().toISOString().slice(0,10);
+    downloadJSON(backup, `restaurant-backup-${dateTag}.json`);
+    showToast(t('backupReady'));
+  }catch(e){
+    console.error('backupAllData error', e);
+    showToast(e.message);
+  }
+}
+
+// Writes/deletes are chunked to respect Firestore's 500-operation-per-batch limit.
+async function commitInChunks(ops){
+  const CHUNK = 400;
+  for(let i=0; i<ops.length; i+=CHUNK){
+    const batch = db.batch();
+    ops.slice(i, i+CHUNK).forEach(op=> op(batch));
+    await batch.commit();
+  }
+}
+
+async function restoreAllData(){
+  const fileInput = document.getElementById('restoreFileInput');
+  const file = fileInput.files[0];
+  if(!file){ showToast(t('chooseBackupFile')); return; }
+
+  try{
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if(!backup || !backup.collections){ showToast(t('invalidBackupFile')); return; }
+
+    if(!confirm(t('confirmRestoreOverwrite'))) return;
+    if(!confirm(t('confirmRestoreFinal'))) return;
+
+    showToast(t('restoringData'));
+
+    // Delete everything currently in each collection, then write the backup's documents
+    // back in with their original IDs so cross-references (branchId, productId, etc.)
+    // still resolve correctly after restore.
+    for(const { key, col } of ALL_DATA_COLLECTIONS){
+      const existingSnap = await col().get();
+      const deleteOps = existingSnap.docs.map(d=> (batch)=> batch.delete(d.ref));
+      await commitInChunks(deleteOps);
+
+      const docs = backup.collections[key] || [];
+      const writeOps = docs.map(docData=>{
+        const { id, ...rest } = docData;
+        const restored = deserializeFirestoreValue(rest);
+        return (batch)=> batch.set(col().doc(id), restored);
+      });
+      await commitInChunks(writeOps);
+    }
+
+    showToast(t('restoreComplete'));
+    fileInput.value = '';
+    // Reload everything so the UI reflects the restored data immediately.
+    await loadBranches();
+    await loadCategories();
+    await loadProducts();
+    await loadStaff();
+    await loadCoupons();
+    await loadNotifications();
+    await loadIngredients();
+    await loadSuppliers();
+    await loadPurchaseOrders();
+    await loadExpenses();
+    startOrdersListener();
+    showModule('dashboard');
+  }catch(e){
+    console.error('restoreAllData error', e);
+    showToast(t('restoreFailed') + ': ' + e.message);
+  }
+}
+
+async function clearAllData(){
+  // Three separate confirmations for a fully destructive, irreversible action: a plain
+  // confirm, a nudge to back up first, then a typed-phrase confirmation so it can't
+  // happen from an accidental double-tap.
+  if(!confirm(t('confirmClearWarning'))) return;
+  if(!confirm(t('confirmClearBackupFirst'))) return;
+
+  const typed = prompt(t('typeToConfirmClear'));
+  if(typed !== t('clearConfirmPhrase')){
+    showToast(t('clearCancelled'));
+    return;
+  }
+
+  try{
+    showToast(t('clearingData'));
+    for(const { key, col } of ALL_DATA_COLLECTIONS){
+      const snap = await col().get();
+      const deleteOps = snap.docs.map(d=> (batch)=> batch.delete(d.ref));
+      await commitInChunks(deleteOps);
+    }
+    showToast(t('dataCleared'));
+    // Reload everything so the UI reflects the now-empty state immediately.
+    await loadBranches();
+    await loadCategories();
+    await loadProducts();
+    await loadStaff();
+    await loadCoupons();
+    await loadNotifications();
+    await loadIngredients();
+    await loadSuppliers();
+    await loadPurchaseOrders();
+    await loadExpenses();
+    startOrdersListener();
+    showModule('dashboard');
+  }catch(e){
+    console.error('clearAllData error', e);
+    showToast(t('clearFailed') + ': ' + e.message);
   }
 }
 
