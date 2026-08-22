@@ -1,0 +1,3467 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>منصة إدارة المطاعم</title>
+<style>
+  :root{
+    --primary:#0f766e; --primary-dark:#0d5f58; --bg:#f4f6f7; --card:#ffffff;
+    --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --danger:#dc2626; --warn:#d97706; --ok:#16a34a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif; background:var(--bg); color:var(--text);}
+  [dir="rtl"] body{font-family:'Segoe UI', Tahoma, 'Cairo', Arial, sans-serif;}
+
+  /* ---------- Login ---------- */
+  #loginScreen{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .login-box{background:var(--card); padding:40px; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.08); width:100%; max-width:380px;}
+  .login-box h1{font-size:22px; margin-bottom:6px; color:var(--primary-dark);}
+  .login-box p{color:var(--muted); font-size:13px; margin-bottom:24px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:13px; margin-bottom:6px; color:var(--muted);}
+  .field input, .field select{width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px;}
+  .btn{background:var(--primary); color:#fff; border:none; padding:11px 18px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600;}
+  .btn:hover{background:var(--primary-dark);}
+  .btn-block{width:100%;}
+  .btn-outline{background:transparent; border:1px solid var(--border); color:var(--text);}
+  .error-msg{background:#fef2f2; color:var(--danger); padding:10px; border-radius:8px; font-size:13px; margin-bottom:14px; display:none;}
+  .lang-switch{position:fixed; top:16px; inset-inline-end:16px; z-index:50;}
+  .lang-switch button{background:var(--card); border:1px solid var(--border); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:13px;}
+
+  /* ---------- App Shell ---------- */
+  #appShell{display:none; min-height:100vh; grid-template-columns:250px 1fr;}
+  #appShell.active{display:grid;}
+  .sidebar{background:#0b3d3a; color:#e6f2f1; padding:20px 0; display:flex; flex-direction:column;}
+  .sidebar-header{padding:0 20px 20px; border-bottom:1px solid rgba(255,255,255,.1); margin-bottom:14px;}
+  .sidebar-header h2{font-size:17px;}
+  .sidebar-header span{font-size:12px; opacity:.7;}
+  .nav-item{display:flex; align-items:center; gap:10px; padding:12px 20px; cursor:pointer; font-size:14px; opacity:.85; border-inline-start:3px solid transparent; transition:.15s;}
+  .nav-item:hover{background:rgba(255,255,255,.06); opacity:1;}
+  .nav-item.active{background:rgba(255,255,255,.1); border-inline-start-color:#2dd4bf; opacity:1; font-weight:600;}
+  .nav-icon{font-size:16px; width:20px; text-align:center;}
+  .sidebar-footer{margin-top:auto; padding:16px 20px; border-top:1px solid rgba(255,255,255,.1);}
+  .sidebar-footer button{width:100%; background:rgba(255,255,255,.08); color:#fff; border:none; padding:9px; border-radius:6px; cursor:pointer; font-size:13px;}
+
+  .main{padding:24px; overflow-x:hidden;}
+  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:10px;}
+  .topbar h1{font-size:20px;}
+  .branch-select{padding:9px 14px; border-radius:8px; border:1px solid var(--border); background:var(--card); font-size:13px;}
+
+  .cards-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:16px; margin-bottom:24px;}
+  .stat-card{background:var(--card); border-radius:12px; padding:18px; box-shadow:0 1px 4px rgba(0,0,0,.05);}
+  .stat-card .label{font-size:12px; color:var(--muted); margin-bottom:6px;}
+  .stat-card .value{font-size:24px; font-weight:700;}
+  .stat-card .sub{font-size:11px; color:var(--ok); margin-top:4px;}
+
+  .panel{background:var(--card); border-radius:12px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,.05); margin-bottom:20px;}
+  .panel-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+  .panel-head h3{font-size:16px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:start; padding:10px; color:var(--muted); border-bottom:2px solid var(--border); font-weight:600;}
+  td{padding:12px 10px; border-bottom:1px solid var(--border);}
+  .badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;}
+  .badge-active{background:#dcfce7; color:var(--ok);}
+  .badge-inactive{background:#fee2e2; color:var(--danger);}
+  .row-actions button{background:none; border:none; cursor:pointer; font-size:14px; padding:4px 6px;}
+
+  .empty-state{text-align:center; padding:50px 20px; color:var(--muted);}
+  .empty-state .icon{font-size:40px; margin-bottom:10px;}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); align-items:center; justify-content:center; z-index:100; padding:20px;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff; border-radius:14px; padding:24px; width:100%; max-width:420px; max-height:90vh; overflow-y:auto;}
+  .modal h3{margin-bottom:18px; font-size:17px;}
+  .modal-actions{display:flex; gap:10px; margin-top:20px;}
+
+  .placeholder-module{text-align:center; padding:80px 20px; color:var(--muted);}
+  .placeholder-module .icon{font-size:50px; margin-bottom:14px;}
+  .placeholder-module h3{color:var(--text); margin-bottom:8px;}
+
+  .toast{position:fixed; bottom:20px; inset-inline-end:20px; background:#1f2937; color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; z-index:200; display:none;}
+
+  /* ---------- Menu / Products module ---------- */
+  .tabs{display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid var(--border);}
+  .tab-btn{background:none; border:none; padding:10px 16px; cursor:pointer; font-size:13px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px;}
+  .tab-btn.active{color:var(--primary); border-bottom-color:var(--primary); font-weight:600;}
+  .tab-pane{display:none;}
+  .tab-pane.active{display:block;}
+
+  .chip-list{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+  .chip{background:var(--card); border:1px solid var(--border); padding:6px 14px; border-radius:20px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px;}
+  .chip.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+  .chip .chip-del{opacity:.6; font-size:11px;}
+  .chip .chip-del:hover{opacity:1;}
+
+  .products-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:14px;}
+  .product-card{background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.05); position:relative;}
+  .product-img{width:100%; height:110px; background:#f0f2f3 center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-size:30px; color:#c9d0d3;}
+  .product-body{padding:12px;}
+  .product-body h4{font-size:13px; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .product-body .price{color:var(--primary-dark); font-weight:700; font-size:14px;}
+  .product-body .cat-label{font-size:11px; color:var(--muted); margin-top:2px;}
+  .product-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
+  .product-actions button{background:none; border:none; cursor:pointer; font-size:13px;}
+  .unavailable-badge{position:absolute; top:8px; inset-inline-start:8px; background:rgba(220,38,38,.9); color:#fff; font-size:10px; padding:2px 8px; border-radius:10px;}
+
+  .img-upload-box{border:2px dashed var(--border); border-radius:10px; height:120px; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; overflow:hidden; margin-bottom:6px; background:#fafafa;}
+  .img-upload-box img{width:100%; height:100%; object-fit:cover; position:absolute; inset:0;}
+  .img-upload-box .upload-hint{color:var(--muted); font-size:12px; text-align:center;}
+  .img-upload-box input[type=file]{position:absolute; inset:0; opacity:0; cursor:pointer;}
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .switch{position:relative; width:42px; height:24px;}
+  .switch input{opacity:0; width:0; height:0;}
+  .switch .slider{position:absolute; inset:0; background:#ccc; border-radius:24px; cursor:pointer; transition:.2s;}
+  .switch .slider:before{content:""; position:absolute; width:18px; height:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s;}
+  .switch input:checked + .slider{background:var(--primary);}
+  .switch input:checked + .slider:before{transform:translateX(18px);}
+  [dir="rtl"] .switch input:checked + .slider:before{transform:translateX(-18px);}
+
+  /* ---------- Orders module ---------- */
+  .orders-board{display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; align-items:flex-start;}
+  .order-col{background:#eef1f2; border-radius:12px; min-width:250px; flex:1 0 250px; padding:12px;}
+  .order-col-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 4px;}
+  .order-col-head h4{font-size:13px;}
+  .order-col-count{background:#fff; border-radius:20px; font-size:11px; padding:2px 9px; color:var(--muted); font-weight:600;}
+  .order-col-body{display:flex; flex-direction:column; gap:10px; min-height:60px;}
+
+  .order-card{background:var(--card); border-radius:10px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,.06); border-inline-start:3px solid var(--primary);}
+  .order-card.status-pending{border-inline-start-color:var(--warn);}
+  .order-card.status-preparing{border-inline-start-color:#2563eb;}
+  .order-card.status-ready{border-inline-start-color:var(--ok);}
+  .order-card.status-delivered{border-inline-start-color:#6b7280;}
+  .order-card.status-cancelled{border-inline-start-color:var(--danger); opacity:.7;}
+  .order-card-top{display:flex; justify-content:space-between; align-items:start; margin-bottom:6px;}
+  .order-card-top .oid{font-size:11px; color:var(--muted);}
+  .order-card-top .otype{font-size:10px; background:#f0f2f3; padding:2px 8px; border-radius:10px;}
+  .order-card .customer{font-size:13px; font-weight:600; margin-bottom:4px;}
+  .order-card .branch-tag{font-size:11px; color:var(--muted); margin-bottom:6px;}
+  .order-card .items-summary{font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.5;}
+  .order-card .order-total{font-weight:700; color:var(--primary-dark); font-size:14px; margin-bottom:8px;}
+  .order-card-actions{display:flex; gap:6px; flex-wrap:wrap;}
+  .order-card-actions button{flex:1; font-size:11px; padding:6px 4px; border-radius:6px; border:1px solid var(--border); background:#fff; cursor:pointer;}
+  .order-card-actions button.primary-action{background:var(--primary); color:#fff; border-color:var(--primary);}
+  .order-card-actions button.danger-action{color:var(--danger); border-color:#fecaca;}
+
+  .order-items-picker{border:1px solid var(--border); border-radius:10px; padding:10px; max-height:220px; overflow-y:auto; margin-bottom:12px;}
+  .picker-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px;}
+  .picker-row:last-child{border-bottom:none;}
+  .picker-row .p-name{flex:1;}
+  .picker-row .p-price{color:var(--muted); font-size:12px; margin-inline-end:10px;}
+  .qty-control{display:flex; align-items:center; gap:8px;}
+  .qty-control button{width:24px; height:24px; border-radius:6px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:14px; line-height:1;}
+  .qty-control span{min-width:16px; text-align:center; font-size:13px;}
+  .order-summary-line{display:flex; justify-content:space-between; font-size:14px; padding:6px 2px;}
+  .order-summary-line.total{font-weight:700; font-size:16px; border-top:1px solid var(--border); margin-top:6px; padding-top:10px;}
+
+  /* ---------- Staff module ---------- */
+  .role-badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#e0e7ff; color:#4338ca;}
+  .perm-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; border:1px solid var(--border); border-radius:10px; padding:12px;}
+  .perm-item{display:flex; align-items:center; gap:8px; font-size:12px;}
+  .perm-item input{width:16px; height:16px;}
+
+  /* ---------- Coupons module ---------- */
+  .coupon-code{font-family:monospace; font-weight:700; background:#f0f2f3; padding:3px 10px; border-radius:6px; font-size:13px; letter-spacing:.5px;}
+  .coupon-type-badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#fef3c7; color:#92400e;}
+  .expired-badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#f3f4f6; color:#6b7280;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+  /* ---------- Reports module ---------- */
+  .report-filters{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center;}
+  .report-filters select, .report-filters input{padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff;}
+  .chart-bars{display:flex; align-items:flex-end; gap:8px; height:180px; padding:10px 4px; overflow-x:auto;}
+  .chart-bar-col{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:36px; flex:1;}
+  .chart-bar{width:100%; max-width:32px; background:var(--primary); border-radius:4px 4px 0 0; min-height:2px; transition:.2s;}
+  .chart-bar-label{font-size:10px; color:var(--muted); white-space:nowrap;}
+  .chart-bar-value{font-size:10px; color:var(--text); font-weight:600;}
+  .top-products-list{display:flex; flex-direction:column; gap:10px;}
+  .top-product-row{display:flex; align-items:center; gap:10px; font-size:13px;}
+  .top-product-rank{width:22px; height:22px; border-radius:50%; background:#eef1f2; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--muted); flex-shrink:0;}
+  .top-product-bar-wrap{flex:1; background:#eef1f2; border-radius:6px; height:8px; overflow:hidden;}
+  .top-product-bar{height:100%; background:var(--primary);}
+  .top-product-count{font-size:12px; color:var(--muted); width:36px; text-align:end; flex-shrink:0;}
+
+  /* ---------- Notifications module ---------- */
+  .notif-list{display:flex; flex-direction:column; gap:10px;}
+  .notif-item{display:flex; gap:12px; padding:14px; border:1px solid var(--border); border-radius:10px; background:var(--card);}
+  .notif-icon{width:36px; height:36px; border-radius:50%; background:#eef1f2; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;}
+  .notif-body{flex:1; min-width:0;}
+  .notif-title{font-size:13px; font-weight:600; margin-bottom:2px;}
+  .notif-text{font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .notif-meta{font-size:11px; color:var(--muted); display:flex; gap:8px; align-items:center;}
+  .target-badge{padding:2px 8px; border-radius:10px; font-size:10px; background:#e0e7ff; color:#4338ca;}
+
+  /* ---------- Inventory & Costs module ---------- */
+  .low-stock-banner{background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:14px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px;}
+  .low-stock-banner .lsb-icon{font-size:22px;}
+  .low-stock-banner .lsb-text{flex:1; font-size:13px; color:#991b1b;}
+  .low-stock-banner button{background:var(--danger); color:#fff; border:none; padding:8px 16px; border-radius:8px; font-size:12px; cursor:pointer; white-space:nowrap;}
+
+  .stock-badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;}
+  .stock-badge.low{background:#fef2f2; color:var(--danger);}
+  .stock-badge.ok{background:#dcfce7; color:var(--ok);}
+  .storage-badge{padding:3px 10px; border-radius:20px; font-size:11px; background:#eef1f2; color:var(--muted);}
+
+  .bom-picker{border:1px solid var(--border); border-radius:10px; padding:10px; max-height:200px; overflow-y:auto; margin-bottom:10px;}
+  .bom-add-row{display:flex; gap:8px; margin-bottom:10px;}
+  .bom-add-row select{flex:2;}
+  .bom-add-row input{flex:1;}
+  .bom-add-row button{background:var(--primary); color:#fff; border:none; border-radius:8px; padding:0 14px; cursor:pointer; font-size:13px;}
+  .bom-line{display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px;}
+  .bom-line:last-child{border-bottom:none;}
+  .bom-line .bl-name{flex:1;}
+  .bom-line .bl-qty{color:var(--muted); font-size:12px;}
+  .bom-line .bl-cost{font-weight:600; font-size:12px; width:60px; text-align:end;}
+  .bom-line .bl-remove{background:none; border:none; color:var(--danger); cursor:pointer; font-size:14px;}
+
+  .cost-summary{background:#f8fafb; border-radius:10px; padding:14px; margin-top:6px;}
+  .cost-summary .cs-line{display:flex; justify-content:space-between; font-size:13px; padding:4px 0;}
+  .cost-summary .cs-line.total{font-weight:700; border-top:1px solid var(--border); margin-top:6px; padding-top:8px;}
+  .cost-summary .cs-line.profit{color:var(--ok); font-weight:700;}
+  .cost-summary .cs-line.loss{color:var(--danger); font-weight:700;}
+
+  .po-status-badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;}
+  .po-status-draft{background:#f3f4f6; color:#6b7280;}
+  .po-status-sent{background:#dbeafe; color:#1e40af;}
+  .po-status-received{background:#dcfce7; color:var(--ok);}
+  .po-items-picker{border:1px solid var(--border); border-radius:10px; padding:10px; max-height:220px; overflow-y:auto; margin-bottom:12px;}
+
+  @media (max-width:768px){
+    #appShell.active{display:flex; flex-direction:column;}
+    .sidebar{flex-direction:row; overflow-x:auto; padding:10px; white-space:nowrap;}
+    .sidebar-header, .sidebar-footer{display:none;}
+    .nav-item{padding:8px 14px; border-inline-start:none; border-bottom:3px solid transparent;}
+    .nav-item.active{border-bottom-color:#2dd4bf;}
+    .main{padding:16px;}
+    table{font-size:12px;}
+    th, td{padding:8px 6px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="lang-switch"><button id="langToggleBtn" onclick="toggleLang()">EN</button></div>
+
+<!-- ===================== LOGIN SCREEN ===================== -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h1 data-i18n="loginTitle">منصة إدارة المطاعم</h1>
+    <p data-i18n="loginSub">سجّل الدخول لإدارة مطعمك</p>
+    <div class="error-msg" id="loginError"></div>
+    <div class="field">
+      <label data-i18n="email">البريد الإلكتروني</label>
+      <input type="email" id="loginEmail" placeholder="owner@restaurant.com">
+    </div>
+    <div class="field">
+      <label data-i18n="password">كلمة المرور</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+    </div>
+    <button class="btn btn-block" id="loginBtn" onclick="doLogin()" data-i18n="loginBtn">دخول</button>
+  </div>
+</div>
+
+<!-- ===================== APP SHELL ===================== -->
+<div id="appShell">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2 data-i18n="platformName">منصة المطاعم</h2>
+      <span id="restaurantNameLabel">—</span>
+    </div>
+    <div class="nav-item active" data-module="dashboard" onclick="showModule('dashboard')">
+      <span class="nav-icon">📊</span><span data-i18n="nav_dashboard">لوحة التحكم</span>
+    </div>
+    <div class="nav-item" data-module="branches" onclick="showModule('branches')">
+      <span class="nav-icon">🏢</span><span data-i18n="nav_branches">الفروع</span>
+    </div>
+    <div class="nav-item" data-module="menu" onclick="showModule('menu')">
+      <span class="nav-icon">🍽️</span><span data-i18n="nav_menu">المنتجات والقوائم</span>
+    </div>
+    <div class="nav-item" data-module="orders" onclick="showModule('orders')">
+      <span class="nav-icon">🧾</span><span data-i18n="nav_orders">الطلبات</span>
+    </div>
+    <div class="nav-item" data-module="staff" onclick="showModule('staff')">
+      <span class="nav-icon">👥</span><span data-i18n="nav_staff">الموظفين والصلاحيات</span>
+    </div>
+    <div class="nav-item" data-module="reports" onclick="showModule('reports')">
+      <span class="nav-icon">📈</span><span data-i18n="nav_reports">التقارير والإحصائيات</span>
+    </div>
+    <div class="nav-item" data-module="coupons" onclick="showModule('coupons')">
+      <span class="nav-icon">🏷️</span><span data-i18n="nav_coupons">الكوبونات والخصومات</span>
+    </div>
+    <div class="nav-item" data-module="notifications" onclick="showModule('notifications')">
+      <span class="nav-icon">🔔</span><span data-i18n="nav_notifications">الإشعارات</span>
+    </div>
+    <div class="nav-item" data-module="inventory" onclick="showModule('inventory')">
+      <span class="nav-icon">📦</span><span data-i18n="nav_inventory">المخزون والتكاليف</span>
+    </div>
+    <div class="sidebar-footer">
+      <button onclick="doLogout()" data-i18n="logout">تسجيل الخروج</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="moduleTitle" data-i18n="nav_dashboard">لوحة التحكم</h1>
+      <select class="branch-select" id="branchFilter" onchange="onBranchFilterChange()">
+        <option value="all" data-i18n="allBranches">كل الفروع</option>
+      </select>
+    </div>
+
+    <!-- Dashboard Module -->
+    <div id="module-dashboard" class="module-content">
+      <div class="cards-grid">
+        <div class="stat-card">
+          <div class="label" data-i18n="statBranches">عدد الفروع</div>
+          <div class="value" id="statBranchCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="statOrdersToday">طلبات اليوم</div>
+          <div class="value">0</div>
+          <div class="sub" data-i18n="statPending">— بانتظار التفعيل</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="statRevenueToday">إيرادات اليوم</div>
+          <div class="value">0 <span style="font-size:13px;">EGP</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="statStaff">عدد الموظفين</div>
+          <div class="value" id="statStaffCount">0</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3 data-i18n="recentActivity">آخر النشاطات</h3></div>
+        <div class="empty-state">
+          <div class="icon">📭</div>
+          <p data-i18n="noActivityYet">لا يوجد نشاط بعد — ابدأ بإضافة فرع أو منتج</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Branches Module -->
+    <div id="module-branches" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="branchList">قائمة الفروع</h3>
+          <button class="btn" onclick="openBranchModal()" data-i18n="addBranch">+ إضافة فرع</button>
+        </div>
+        <div id="branchesTableWrap">
+          <div class="empty-state" id="branchesEmpty">
+            <div class="icon">🏢</div>
+            <p data-i18n="noBranchesYet">لم تُضف أي فروع بعد</p>
+          </div>
+          <table id="branchesTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colName">الاسم</th>
+                <th data-i18n="colCity">المدينة</th>
+                <th data-i18n="colPhone">الهاتف</th>
+                <th data-i18n="colStatus">الحالة</th>
+                <th data-i18n="colActions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="branchesTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Placeholder modules (built in next phases) -->
+    <div id="module-menu" class="module-content" style="display:none;">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="products" onclick="switchMenuTab('products')" data-i18n="tabProducts">المنتجات</button>
+        <button class="tab-btn" data-tab="categories" onclick="switchMenuTab('categories')" data-i18n="tabCategories">التصنيفات</button>
+      </div>
+
+      <!-- Products Tab -->
+      <div class="tab-pane active" id="menuTab-products">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="productList">قائمة المنتجات</h3>
+            <button class="btn" onclick="openProductModal()" data-i18n="addProduct">+ إضافة منتج</button>
+          </div>
+          <div class="chip-list" id="categoryFilterChips"></div>
+          <div id="productsGridWrap">
+            <div class="empty-state" id="productsEmpty">
+              <div class="icon">🍽️</div>
+              <p data-i18n="noProductsYet">لا توجد منتجات بعد</p>
+            </div>
+            <div class="products-grid" id="productsGrid" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categories Tab -->
+      <div class="tab-pane" id="menuTab-categories">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="categoryList">قائمة التصنيفات</h3>
+            <button class="btn" onclick="openCategoryModal()" data-i18n="addCategory">+ إضافة تصنيف</button>
+          </div>
+          <div id="categoriesTableWrap">
+            <div class="empty-state" id="categoriesEmpty">
+              <div class="icon">🏷️</div>
+              <p data-i18n="noCategoriesYet">لا توجد تصنيفات بعد</p>
+            </div>
+            <table id="categoriesTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colNameAr">الاسم (عربي)</th>
+                  <th data-i18n="colNameEn">الاسم (إنجليزي)</th>
+                  <th data-i18n="colProductCount">عدد المنتجات</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="categoriesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="module-orders" class="module-content" style="display:none;">
+      <div class="panel-head" style="margin-bottom:16px;">
+        <h3 data-i18n="ordersBoard" style="font-size:16px;">لوحة الطلبات</h3>
+        <button class="btn" onclick="openOrderModal()" data-i18n="addOrder">+ طلب جديد</button>
+      </div>
+      <div class="orders-board" id="ordersBoard"></div>
+    </div>
+    <div id="module-staff" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="staffList">قائمة الموظفين</h3>
+          <button class="btn" onclick="openStaffModal()" data-i18n="addStaff">+ إضافة موظف</button>
+        </div>
+        <div id="staffTableWrap">
+          <div class="empty-state" id="staffEmpty">
+            <div class="icon">👥</div>
+            <p data-i18n="noStaffYet">لم تُضف أي موظفين بعد</p>
+          </div>
+          <table id="staffTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colName">الاسم</th>
+                <th data-i18n="colRole">الدور</th>
+                <th data-i18n="colBranch">الفرع</th>
+                <th data-i18n="colPin">كود الدخول</th>
+                <th data-i18n="colStatus">الحالة</th>
+                <th data-i18n="colActions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="staffTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="module-reports" class="module-content" style="display:none;">
+      <div class="report-filters">
+        <select id="reportPeriodSelect" onchange="onReportFilterChange()">
+          <option value="7" data-i18n="last7Days">آخر 7 أيام</option>
+          <option value="30" data-i18n="last30Days">آخر 30 يوم</option>
+          <option value="90" data-i18n="last90Days">آخر 90 يوم</option>
+        </select>
+        <select id="reportBranchSelect" onchange="onReportFilterChange()">
+          <option value="all" data-i18n="allBranches">كل الفروع</option>
+        </select>
+      </div>
+
+      <div class="cards-grid">
+        <div class="stat-card">
+          <div class="label" data-i18n="reportTotalOrders">إجمالي الطلبات</div>
+          <div class="value" id="reportTotalOrders">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="reportTotalRevenue">إجمالي الإيرادات</div>
+          <div class="value" id="reportTotalRevenue">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="reportAvgOrder">متوسط قيمة الطلب</div>
+          <div class="value" id="reportAvgOrder">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="reportCancelled">الطلبات الملغاة</div>
+          <div class="value" id="reportCancelledOrders">0</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3 data-i18n="revenueOverTime">الإيرادات خلال الفترة</h3></div>
+        <div id="revenueChartWrap">
+          <div class="empty-state" id="revenueChartEmpty">
+            <div class="icon">📊</div>
+            <p data-i18n="noDataYet">لا توجد بيانات كافية بعد</p>
+          </div>
+          <div class="chart-bars" id="revenueChart" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3 data-i18n="topProducts">الأكثر مبيعًا</h3></div>
+        <div id="topProductsWrap">
+          <div class="empty-state" id="topProductsEmpty">
+            <div class="icon">🍽️</div>
+            <p data-i18n="noDataYet">لا توجد بيانات كافية بعد</p>
+          </div>
+          <div class="top-products-list" id="topProductsList" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3 data-i18n="revenueByBranch">الإيرادات حسب الفرع</h3></div>
+        <div id="branchRevenueWrap">
+          <div class="empty-state" id="branchRevenueEmpty">
+            <div class="icon">🏢</div>
+            <p data-i18n="noDataYet">لا توجد بيانات كافية بعد</p>
+          </div>
+          <table id="branchRevenueTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colBranch">الفرع</th>
+                <th data-i18n="reportTotalOrders">إجمالي الطلبات</th>
+                <th data-i18n="reportTotalRevenue">إجمالي الإيرادات</th>
+              </tr>
+            </thead>
+            <tbody id="branchRevenueTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="module-coupons" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="couponList">قائمة الكوبونات</h3>
+          <button class="btn" onclick="openCouponModal()" data-i18n="addCoupon">+ إضافة كوبون</button>
+        </div>
+        <div id="couponsTableWrap">
+          <div class="empty-state" id="couponsEmpty">
+            <div class="icon">🏷️</div>
+            <p data-i18n="noCouponsYet">لا توجد كوبونات بعد</p>
+          </div>
+          <table id="couponsTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colCode">الكود</th>
+                <th data-i18n="colDiscount">الخصم</th>
+                <th data-i18n="colMinOrder">أقل قيمة طلب</th>
+                <th data-i18n="colUsage">الاستخدام</th>
+                <th data-i18n="colExpiry">تاريخ الانتهاء</th>
+                <th data-i18n="colStatus">الحالة</th>
+                <th data-i18n="colActions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="couponsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="module-notifications" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="notifList">الإشعارات المرسلة</h3>
+          <button class="btn" onclick="openNotificationModal()" data-i18n="sendNotification">+ إرسال إشعار</button>
+        </div>
+        <div id="notifListWrap">
+          <div class="empty-state" id="notifEmpty">
+            <div class="icon">🔔</div>
+            <p data-i18n="noNotificationsYet">لا توجد إشعارات مرسلة بعد</p>
+          </div>
+          <div class="notif-list" id="notifList" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inventory & Costs Module -->
+    <div id="module-inventory" class="module-content" style="display:none;">
+      <div class="low-stock-banner" id="lowStockBanner" style="display:none;">
+        <span class="lsb-icon">⚠️</span>
+        <span class="lsb-text" id="lowStockText"></span>
+        <button onclick="openPOModal(true)" data-i18n="viewShortages">عرض النواقص</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-invtab="ingredients" onclick="switchInventoryTab('ingredients')" data-i18n="tabIngredients">المكونات والمخزون</button>
+        <button class="tab-btn" data-invtab="suppliers" onclick="switchInventoryTab('suppliers')" data-i18n="tabSuppliers">الموردين</button>
+        <button class="tab-btn" data-invtab="purchaseOrders" onclick="switchInventoryTab('purchaseOrders')" data-i18n="tabPurchaseOrders">أوامر الشراء</button>
+      </div>
+
+      <!-- Ingredients Tab -->
+      <div class="tab-pane active" id="invTab-ingredients">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="ingredientList">قائمة المكونات</h3>
+            <button class="btn" onclick="openIngredientModal()" data-i18n="addIngredient">+ إضافة مكوّن</button>
+          </div>
+          <div id="ingredientsTableWrap">
+            <div class="empty-state" id="ingredientsEmpty">
+              <div class="icon">🧂</div>
+              <p data-i18n="noIngredientsYet">لا توجد مكونات بعد</p>
+            </div>
+            <table id="ingredientsTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colName">الاسم</th>
+                  <th data-i18n="colUnit">الوحدة</th>
+                  <th data-i18n="colCostPerUnit">تكلفة الوحدة</th>
+                  <th data-i18n="colCurrentStock">المخزون الحالي</th>
+                  <th data-i18n="colMinStock">الحد الأدنى</th>
+                  <th data-i18n="colStorage">مكان التخزين</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="ingredientsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Stock Availability Report: shows, per product, the max number of units the
+             current ingredient stock allows to be prepared right now. -->
+        <div class="panel" style="margin-top:20px;">
+          <div class="panel-head">
+            <h3 data-i18n="stockAvailabilityReport">تقرير إتاحة المخزون</h3>
+          </div>
+          <p style="font-size:12px; color:var(--muted); margin:-8px 0 14px;" data-i18n="stockAvailabilityDesc">أقصى عدد وحدات يمكن تجهيزها من كل منتج بناءً على المخزون الحالي للمكونات</p>
+          <div id="stockAvailabilityWrap">
+            <div class="empty-state" id="stockAvailabilityEmpty">
+              <div class="icon">📦</div>
+              <p data-i18n="noIngredientsYet">لا توجد مكونات بعد</p>
+            </div>
+            <table id="stockAvailabilityTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colName">الاسم</th>
+                  <th data-i18n="maxAvailable">أقصى كمية متاحة</th>
+                  <th data-i18n="bottleneckIngredient">المكوّن المحدِّد</th>
+                </tr>
+              </thead>
+              <tbody id="stockAvailabilityTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Suppliers Tab -->
+      <div class="tab-pane" id="invTab-suppliers">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="supplierList">قائمة الموردين</h3>
+            <button class="btn" onclick="openSupplierModal()" data-i18n="addSupplier">+ إضافة مورد</button>
+          </div>
+          <div id="suppliersTableWrap">
+            <div class="empty-state" id="suppliersEmpty">
+              <div class="icon">🚚</div>
+              <p data-i18n="noSuppliersYet">لا يوجد موردين بعد</p>
+            </div>
+            <table id="suppliersTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colName">الاسم</th>
+                  <th data-i18n="colContactPerson">الشخص المسؤول</th>
+                  <th data-i18n="colPhone">الهاتف</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="suppliersTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Purchase Orders Tab -->
+      <div class="tab-pane" id="invTab-purchaseOrders">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="poList">أوامر الشراء</h3>
+            <button class="btn" onclick="openPOModal()" data-i18n="addPO">+ أمر شراء جديد</button>
+          </div>
+          <div id="poTableWrap">
+            <div class="empty-state" id="poEmpty">
+              <div class="icon">📋</div>
+              <p data-i18n="noPOsYet">لا توجد أوامر شراء بعد</p>
+            </div>
+            <table id="poTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colSupplier">المورد</th>
+                  <th data-i18n="colItemsCount">عدد الأصناف</th>
+                  <th data-i18n="colTotal">الإجمالي</th>
+                  <th data-i18n="colStatus">الحالة</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="poTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Branch Modal -->
+<div class="modal-overlay" id="branchModal">
+  <div class="modal">
+    <h3 id="branchModalTitle" data-i18n="addBranch">إضافة فرع</h3>
+    <div class="field">
+      <label data-i18n="branchName">اسم الفرع</label>
+      <input type="text" id="branchNameInput" placeholder="فرع المعادي">
+    </div>
+    <div class="field">
+      <label data-i18n="colCity">المدينة</label>
+      <input type="text" id="branchCityInput" placeholder="القاهرة">
+    </div>
+    <div class="field">
+      <label data-i18n="colPhone">الهاتف</label>
+      <input type="text" id="branchPhoneInput" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label data-i18n="colStatus">الحالة</label>
+      <select id="branchStatusInput">
+        <option value="active" data-i18n="active">نشط</option>
+        <option value="inactive" data-i18n="inactive">غير نشط</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeBranchModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveBranch()" id="saveBranchBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div class="modal-overlay" id="categoryModal">
+  <div class="modal">
+    <h3 id="categoryModalTitle" data-i18n="addCategory">إضافة تصنيف</h3>
+    <div class="field">
+      <label data-i18n="colNameAr">الاسم (عربي)</label>
+      <input type="text" id="categoryNameArInput" placeholder="مقبلات">
+    </div>
+    <div class="field">
+      <label data-i18n="colNameEn">الاسم (إنجليزي)</label>
+      <input type="text" id="categoryNameEnInput" placeholder="Appetizers">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeCategoryModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveCategory()" id="saveCategoryBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Product Modal -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal">
+    <h3 id="productModalTitle" data-i18n="addProduct">إضافة منتج</h3>
+
+    <label class="img-upload-box" id="productImgBox">
+      <span class="upload-hint" id="productImgHint" data-i18n="uploadImage">اضغط لرفع صورة المنتج</span>
+      <img id="productImgPreview" style="display:none;">
+      <input type="file" accept="image/*" id="productImageInput" onchange="onProductImageSelected(event)">
+    </label>
+    <div id="productUploadProgress" style="font-size:11px; color:var(--muted); display:none; margin-bottom:10px;"></div>
+
+    <div class="field">
+      <label data-i18n="colNameAr">اسم المنتج (عربي)</label>
+      <input type="text" id="productNameArInput" placeholder="برجر لحم">
+    </div>
+    <div class="field">
+      <label data-i18n="colNameEn">اسم المنتج (إنجليزي)</label>
+      <input type="text" id="productNameEnInput" placeholder="Beef Burger">
+    </div>
+    <div class="field">
+      <label data-i18n="colPrice">السعر</label>
+      <input type="number" id="productPriceInput" placeholder="120" min="0" step="0.01" oninput="updateProductCostSummary()">
+    </div>
+    <div class="field">
+      <label data-i18n="colCategory">التصنيف</label>
+      <select id="productCategoryInput"></select>
+    </div>
+
+    <div class="field">
+      <label data-i18n="recipeBOM">مكونات الوصفة (BOM)</label>
+      <div class="bom-add-row">
+        <select id="bomIngredientSelect"></select>
+        <input type="number" id="bomQtyInput" placeholder="0.5" min="0" step="0.01">
+        <button type="button" onclick="addBomLine()">+</button>
+      </div>
+      <div class="bom-picker" id="bomLinesWrap">
+        <div style="text-align:center; color:var(--muted); font-size:12px; padding:10px 0;" id="bomEmptyHint" data-i18n="noBomLinesYet">لا توجد مكونات مضافة بعد</div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="laborCost">تكلفة العمالة/الطهي</label>
+        <input type="number" id="productLaborCostInput" placeholder="10" min="0" step="0.01" oninput="updateProductCostSummary()">
+      </div>
+      <div class="field">
+        <label data-i18n="otherCosts">تكاليف أخرى</label>
+        <input type="number" id="productOtherCostsInput" placeholder="5" min="0" step="0.01" oninput="updateProductCostSummary()">
+      </div>
+    </div>
+
+    <div class="cost-summary">
+      <div class="cs-line"><span data-i18n="ingredientsCost">تكلفة المكونات</span><span id="csIngredientsCost">0.00</span></div>
+      <div class="cs-line"><span data-i18n="laborCost">تكلفة العمالة/الطهي</span><span id="csLaborCost">0.00</span></div>
+      <div class="cs-line"><span data-i18n="otherCosts">تكاليف أخرى</span><span id="csOtherCosts">0.00</span></div>
+      <div class="cs-line total"><span data-i18n="totalCost">إجمالي التكلفة</span><span id="csTotalCost">0.00</span></div>
+      <div class="cs-line" id="csProfitLine"><span data-i18n="expectedProfit">الربح المتوقع</span><span id="csProfit">0.00</span></div>
+      <div class="cs-line"><span data-i18n="profitMargin">هامش الربح</span><span id="csMargin">0%</span></div>
+    </div>
+
+    <div class="toggle-row" style="margin-top:16px;">
+      <span data-i18n="available" style="font-size:13px;">متاح للطلب</span>
+      <label class="switch">
+        <input type="checkbox" id="productAvailableInput" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeProductModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveProduct()" id="saveProductBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Order Modal -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal" style="max-width:460px;">
+    <h3 data-i18n="addOrder">طلب جديد</h3>
+    <div class="field">
+      <label data-i18n="colBranch">الفرع</label>
+      <select id="orderBranchInput"></select>
+    </div>
+    <div class="field">
+      <label data-i18n="orderType">نوع الطلب</label>
+      <select id="orderTypeInput">
+        <option value="dine-in" data-i18n="dineIn">صالة</option>
+        <option value="takeaway" data-i18n="takeaway">تيك أواي</option>
+        <option value="delivery" data-i18n="delivery">دليفري</option>
+      </select>
+    </div>
+    <div class="field">
+      <label data-i18n="customerName">اسم العميل</label>
+      <input type="text" id="orderCustomerNameInput" placeholder="اسم العميل">
+    </div>
+    <div class="field">
+      <label data-i18n="customerPhone">رقم الهاتف</label>
+      <input type="text" id="orderCustomerPhoneInput" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label data-i18n="selectItems">اختر المنتجات</label>
+      <div class="order-items-picker" id="orderItemsPicker"></div>
+    </div>
+    <div class="field">
+      <label data-i18n="couponCode">كود الكوبون (اختياري)</label>
+      <input type="text" id="orderCouponInput" placeholder="SAVE20" style="text-transform:uppercase;" oninput="applyOrderCoupon()">
+      <div id="couponFeedback" style="font-size:12px; margin-top:4px;"></div>
+    </div>
+    <div class="order-summary-line" id="orderSubtotalLine" style="display:none;">
+      <span data-i18n="subtotal">قبل الخصم</span>
+      <span id="orderSubtotalDisplay">0.00</span>
+    </div>
+    <div class="order-summary-line" id="orderDiscountLine" style="display:none; color:var(--ok);">
+      <span data-i18n="discount">الخصم</span>
+      <span id="orderDiscountDisplay">0.00</span>
+    </div>
+    <div class="order-summary-line total">
+      <span data-i18n="total">الإجمالي</span>
+      <span id="orderTotalDisplay">0.00</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeOrderModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveOrder()" id="saveOrderBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staff Modal -->
+<div class="modal-overlay" id="staffModal">
+  <div class="modal">
+    <h3 id="staffModalTitle" data-i18n="addStaff">إضافة موظف</h3>
+    <div class="field">
+      <label data-i18n="colName">الاسم</label>
+      <input type="text" id="staffNameInput" placeholder="أحمد محمد">
+    </div>
+    <div class="field">
+      <label data-i18n="colPhone">الهاتف</label>
+      <input type="text" id="staffPhoneInput" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label data-i18n="colRole">الدور</label>
+      <select id="staffRoleInput" onchange="onStaffRoleChange()">
+        <option value="manager" data-i18n="role_manager">مدير فرع</option>
+        <option value="cashier" data-i18n="role_cashier">كاشير</option>
+        <option value="chef" data-i18n="role_chef">شيف</option>
+        <option value="waiter" data-i18n="role_waiter">جرسون</option>
+      </select>
+    </div>
+    <div class="field">
+      <label data-i18n="colBranch">الفرع</label>
+      <select id="staffBranchInput"></select>
+    </div>
+    <div class="field">
+      <label data-i18n="colPin">كود الدخول السريع (PIN)</label>
+      <input type="text" id="staffPinInput" placeholder="1234" maxlength="6">
+    </div>
+    <div class="field">
+      <label data-i18n="permissions">الصلاحيات</label>
+      <div class="perm-grid" id="staffPermGrid"></div>
+    </div>
+    <div class="toggle-row">
+      <span data-i18n="active" style="font-size:13px;">نشط</span>
+      <label class="switch">
+        <input type="checkbox" id="staffActiveInput" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeStaffModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveStaff()" id="saveStaffBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Coupon Modal -->
+<div class="modal-overlay" id="couponModal">
+  <div class="modal">
+    <h3 id="couponModalTitle" data-i18n="addCoupon">إضافة كوبون</h3>
+    <div class="field">
+      <label data-i18n="colCode">الكود</label>
+      <input type="text" id="couponCodeInput" placeholder="SAVE20" style="text-transform:uppercase;">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="discountType">نوع الخصم</label>
+        <select id="couponTypeInput">
+          <option value="percentage" data-i18n="percentage">نسبة %</option>
+          <option value="fixed" data-i18n="fixedAmount">مبلغ ثابت</option>
+        </select>
+      </div>
+      <div class="field">
+        <label data-i18n="discountValue">قيمة الخصم</label>
+        <input type="number" id="couponValueInput" placeholder="20" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="field">
+      <label data-i18n="colMinOrder">أقل قيمة طلب</label>
+      <input type="number" id="couponMinOrderInput" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="startDate">تاريخ البدء</label>
+        <input type="date" id="couponStartInput">
+      </div>
+      <div class="field">
+        <label data-i18n="endDate">تاريخ الانتهاء</label>
+        <input type="date" id="couponEndInput">
+      </div>
+    </div>
+    <div class="field">
+      <label data-i18n="usageLimit">الحد الأقصى للاستخدام (اختياري)</label>
+      <input type="number" id="couponUsageLimitInput" placeholder="مفتوح" min="1">
+    </div>
+    <div class="toggle-row">
+      <span data-i18n="active" style="font-size:13px;">نشط</span>
+      <label class="switch">
+        <input type="checkbox" id="couponActiveInput" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeCouponModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveCoupon()" id="saveCouponBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Modal -->
+<div class="modal-overlay" id="notificationModal">
+  <div class="modal">
+    <h3 data-i18n="sendNotification">إرسال إشعار</h3>
+    <div class="field">
+      <label data-i18n="notifTargetLabel">المستهدف</label>
+      <select id="notifTargetInput" onchange="onNotifTargetChange()">
+        <option value="all" data-i18n="targetAllCustomers">كل العملاء</option>
+        <option value="branch" data-i18n="targetBranchCustomers">عملاء فرع معيّن</option>
+        <option value="staff" data-i18n="targetStaff">الموظفين</option>
+      </select>
+    </div>
+    <div class="field" id="notifBranchFieldWrap" style="display:none;">
+      <label data-i18n="colBranch">الفرع</label>
+      <select id="notifBranchInput"></select>
+    </div>
+    <div class="field">
+      <label data-i18n="notifTitle">عنوان الإشعار</label>
+      <input type="text" id="notifTitleInput" placeholder="عرض اليوم 🎉">
+    </div>
+    <div class="field">
+      <label data-i18n="notifBody">نص الإشعار</label>
+      <textarea id="notifBodyInput" rows="3" style="width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;" placeholder="خصم 20% على كل الطلبات اليوم فقط"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeNotificationModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="sendNotification()" id="sendNotifBtn" data-i18n="send">إرسال</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ingredient Modal -->
+<div class="modal-overlay" id="ingredientModal">
+  <div class="modal">
+    <h3 id="ingredientModalTitle" data-i18n="addIngredient">إضافة مكوّن</h3>
+    <div class="field">
+      <label data-i18n="colName">الاسم</label>
+      <input type="text" id="ingredientNameInput" placeholder="طماطم">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="colUnit">الوحدة</label>
+        <select id="ingredientUnitInput">
+          <option value="kg">كيلوجرام (kg)</option>
+          <option value="g">جرام (g)</option>
+          <option value="l">لتر (l)</option>
+          <option value="ml">ملليلتر (ml)</option>
+          <option value="piece" data-i18n="unitPiece">قطعة</option>
+        </select>
+      </div>
+      <div class="field">
+        <label data-i18n="colCostPerUnit">تكلفة الوحدة</label>
+        <input type="number" id="ingredientCostInput" placeholder="15" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="colCurrentStock">المخزون الحالي</label>
+        <input type="number" id="ingredientStockInput" placeholder="10" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <label data-i18n="colMinStock">الحد الأدنى</label>
+        <input type="number" id="ingredientMinStockInput" placeholder="2" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="field">
+      <label data-i18n="colStorage">مكان التخزين</label>
+      <select id="ingredientStorageInput">
+        <option value="warehouse" data-i18n="storageWarehouse">مخزن</option>
+        <option value="fridge" data-i18n="storageFridge">ثلاجة</option>
+        <option value="freezer" data-i18n="storageFreezer">فريزر</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeIngredientModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveIngredient()" id="saveIngredientBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Supplier Modal -->
+<div class="modal-overlay" id="supplierModal">
+  <div class="modal">
+    <h3 id="supplierModalTitle" data-i18n="addSupplier">إضافة مورد</h3>
+    <div class="field">
+      <label data-i18n="colName">اسم المورد</label>
+      <input type="text" id="supplierNameInput" placeholder="شركة الأمانة للتوريدات">
+    </div>
+    <div class="field">
+      <label data-i18n="colContactPerson">الشخص المسؤول</label>
+      <input type="text" id="supplierContactInput" placeholder="محمد أحمد">
+    </div>
+    <div class="field">
+      <label data-i18n="colPhone">الهاتف</label>
+      <input type="text" id="supplierPhoneInput" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label data-i18n="supplierNotes">ملاحظات (اختياري)</label>
+      <textarea id="supplierNotesInput" rows="2" style="width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeSupplierModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveSupplier()" id="saveSupplierBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Purchase Order Modal -->
+<div class="modal-overlay" id="poModal">
+  <div class="modal" style="max-width:460px;">
+    <h3 data-i18n="addPO">أمر شراء جديد</h3>
+    <div class="field">
+      <label data-i18n="colSupplier">المورد</label>
+      <select id="poSupplierInput"></select>
+    </div>
+    <div class="field">
+      <label data-i18n="selectItems">اختر الأصناف</label>
+      <div class="po-items-picker" id="poItemsPicker"></div>
+    </div>
+    <div class="order-summary-line total">
+      <span data-i18n="total">الإجمالي</span>
+      <span id="poTotalDisplay">0.00</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closePOModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="savePO()" id="savePOBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK scripts moved here (right before the app script, instead of <head>) so the
+     browser can parse and paint the login screen immediately instead of blocking page render
+     while these download — this is what caused the app to look "frozen"/blank on slower
+     mobile connections before any content appeared. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script>
+/* =========================================================
+   RESTAURANT PLATFORM — PHASE 1
+   Auth + Multi-tenant shell + Branches management
+   Firebase config below MUST be replaced with your project's config
+   ========================================================= */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyABB8IqmJGLDT8TbtZxK57KbPachPq3_wM",
+  authDomain: "restaurant-platform-b01a6.firebaseapp.com",
+  projectId: "restaurant-platform-b01a6",
+  storageBucket: "restaurant-platform-b01a6.firebasestorage.app",
+  messagingSenderId: "344618338704",
+  appId: "1:344618338704:web:6807d84be9e2007baccb15"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+let currentUser = null;
+let currentRestaurantId = null;
+let currentLang = 'ar';
+let editingBranchId = null;
+let branchesCache = [];
+
+let categoriesCache = [];
+let productsCache = [];
+let editingCategoryId = null;
+let editingProductId = null;
+let activeCategoryFilter = 'all';
+let selectedProductImageFile = null;
+let existingProductImageUrl = '';
+
+let ordersCache = [];
+let ordersUnsubscribe = null;
+let orderItemsSelection = {}; // { productId: qty }
+let appliedCoupon = null;
+const ORDER_STATUSES = ['pending','preparing','ready','delivered','cancelled'];
+
+let staffCache = [];
+let editingStaffId = null;
+const ALL_PERMISSIONS = ['orders_view','orders_edit','menu_edit','reports_view','staff_manage','coupons_manage'];
+const ROLE_DEFAULT_PERMS = {
+  manager: ['orders_view','orders_edit','menu_edit','reports_view','staff_manage','coupons_manage'],
+  cashier: ['orders_view','orders_edit'],
+  chef: ['orders_view'],
+  waiter: ['orders_view','orders_edit']
+};
+
+let couponsCache = [];
+let editingCouponId = null;
+
+let notificationsCache = [];
+
+let ingredientsCache = [];
+let editingIngredientId = null;
+let suppliersCache = [];
+let editingSupplierId = null;
+let purchaseOrdersCache = [];
+let poItemsSelection = {}; // { ingredientId: qty }
+let currentProductBom = {}; // { ingredientId: qty } — for product modal
+
+/* ---------- i18n ---------- */
+const translations = {
+  ar: {
+    loginTitle:"منصة إدارة المطاعم", loginSub:"سجّل الدخول لإدارة مطعمك",
+    email:"البريد الإلكتروني", password:"كلمة المرور", loginBtn:"دخول",
+    platformName:"منصة المطاعم", logout:"تسجيل الخروج",
+    nav_dashboard:"لوحة التحكم", nav_branches:"الفروع", nav_menu:"المنتجات والقوائم",
+    nav_orders:"الطلبات", nav_staff:"الموظفين والصلاحيات", nav_reports:"التقارير والإحصائيات",
+    nav_coupons:"الكوبونات والخصومات", nav_notifications:"الإشعارات",
+    allBranches:"كل الفروع", statBranches:"عدد الفروع", statOrdersToday:"طلبات اليوم",
+    statPending:"— بانتظار التفعيل", statRevenueToday:"إيرادات اليوم", statStaff:"عدد الموظفين",
+    recentActivity:"آخر النشاطات", noActivityYet:"لا يوجد نشاط بعد — ابدأ بإضافة فرع أو منتج",
+    branchList:"قائمة الفروع", addBranch:"إضافة فرع", noBranchesYet:"لم تُضف أي فروع بعد",
+    colName:"الاسم", colCity:"المدينة", colPhone:"الهاتف", colStatus:"الحالة", colActions:"إجراءات",
+    branchName:"اسم الفرع", active:"نشط", inactive:"غير نشط", cancel:"إلغاء", save:"حفظ",
+    ph_soon:"هذا القسم قيد الإنشاء — المرحلة القادمة",
+    ph_menu_title:"إدارة المنتجات والقوائم", ph_orders_title:"إدارة الطلبات",
+    ph_staff_title:"الموظفين والصلاحيات", ph_reports_title:"التقارير والإحصائيات",
+    ph_coupons_title:"الكوبونات والخصومات", ph_notif_title:"نظام الإشعارات",
+    editBranch:"تعديل فرع", delete:"حذف", edit:"تعديل",
+    fillRequired:"من فضلك أكمل الحقول المطلوبة", branchSaved:"تم حفظ الفرع بنجاح",
+    branchDeleted:"تم حذف الفرع", confirmDelete:"هل أنت متأكد من الحذف؟",
+    loginFailed:"فشل تسجيل الدخول — تحقق من البيانات",
+    tabProducts:"المنتجات", tabCategories:"التصنيفات",
+    productList:"قائمة المنتجات", addProduct:"+ إضافة منتج", noProductsYet:"لا توجد منتجات بعد",
+    categoryList:"قائمة التصنيفات", addCategory:"+ إضافة تصنيف", noCategoriesYet:"لا توجد تصنيفات بعد",
+    colNameAr:"الاسم (عربي)", colNameEn:"الاسم (إنجليزي)", colProductCount:"عدد المنتجات",
+    colPrice:"السعر", colCategory:"التصنيف", available:"متاح للطلب", unavailable:"غير متاح",
+    uploadImage:"اضغط لرفع صورة المنتج", uploading:"جاري رفع الصورة...",
+    editProduct:"تعديل منتج", editCategory:"تعديل تصنيف",
+    categorySaved:"تم حفظ التصنيف", categoryDeleted:"تم حذف التصنيف",
+    productSaved:"تم حفظ المنتج", productDeleted:"تم حذف المنتج",
+    noCategoryFirst:"أضف تصنيف واحد على الأقل أولاً", allCategories:"الكل",
+    confirmDeleteCategory:"حذف التصنيف لن يحذف منتجاته، لكنها ستصبح بدون تصنيف. متابعة؟",
+    ordersBoard:"لوحة الطلبات", addOrder:"+ طلب جديد", colBranch:"الفرع",
+    orderType:"نوع الطلب", dineIn:"صالة", takeaway:"تيك أواي", delivery:"دليفري",
+    customerName:"اسم العميل", customerPhone:"رقم الهاتف", selectItems:"اختر المنتجات",
+    total:"الإجمالي", orderSaved:"تم حفظ الطلب", orderDeleted:"تم حذف الطلب",
+    noBranchFirst:"أضف فرع واحد على الأقل أولاً", noProductFirst:"أضف منتج واحد على الأقل أولاً",
+    selectAtLeastOne:"اختر منتج واحد على الأقل",
+    status_pending:"جديد", status_preparing:"قيد التحضير", status_ready:"جاهز",
+    status_delivered:"تم التسليم", status_cancelled:"ملغي",
+    markPreparing:"بدء التحضير", markReady:"جاهز", markDelivered:"تسليم", markCancelled:"إلغاء",
+    noOrdersInStatus:"لا توجد طلبات",
+    staffList:"قائمة الموظفين", addStaff:"+ إضافة موظف", noStaffYet:"لم تُضف أي موظفين بعد",
+    colRole:"الدور", colPin:"كود الدخول", permissions:"الصلاحيات",
+    role_manager:"مدير فرع", role_cashier:"كاشير", role_chef:"شيف", role_waiter:"جرسون",
+    perm_orders_view:"عرض الطلبات", perm_orders_edit:"تعديل الطلبات",
+    perm_menu_edit:"تعديل القائمة", perm_reports_view:"عرض التقارير",
+    perm_staff_manage:"إدارة الموظفين", perm_coupons_manage:"إدارة الكوبونات",
+    editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
+    pinMustBe4:"كود الدخول لازم يكون 4 أرقام على الأقل",
+    couponList:"قائمة الكوبونات", addCoupon:"+ إضافة كوبون", noCouponsYet:"لا توجد كوبونات بعد",
+    colCode:"الكود", colDiscount:"الخصم", colMinOrder:"أقل قيمة طلب", colUsage:"الاستخدام",
+    colExpiry:"تاريخ الانتهاء", discountType:"نوع الخصم", percentage:"نسبة %", fixedAmount:"مبلغ ثابت",
+    discountValue:"قيمة الخصم", startDate:"تاريخ البدء", endDate:"تاريخ الانتهاء",
+    usageLimit:"الحد الأقصى للاستخدام (اختياري)", unlimited:"غير محدود",
+    editCoupon:"تعديل كوبون", couponSaved:"تم حفظ الكوبون", couponDeleted:"تم حذف الكوبون",
+    codeRequired:"الكود مطلوب", codeExists:"هذا الكود مستخدم بالفعل", expired:"منتهي",
+    couponCode:"كود الكوبون (اختياري)", subtotal:"قبل الخصم", discount:"الخصم",
+    couponInvalid:"الكود غير صحيح", couponExpired:"الكوبون منتهي الصلاحية",
+    couponInactive:"الكوبون غير مفعّل", couponMinOrder:"أقل قيمة طلب مطلوبة",
+    couponLimitReached:"وصل الكوبون للحد الأقصى من الاستخدام", couponApplied:"تم تطبيق الكوبون",
+    last7Days:"آخر 7 أيام", last30Days:"آخر 30 يوم", last90Days:"آخر 90 يوم",
+    reportTotalOrders:"إجمالي الطلبات", reportTotalRevenue:"إجمالي الإيرادات",
+    reportAvgOrder:"متوسط قيمة الطلب", reportCancelled:"الطلبات الملغاة",
+    revenueOverTime:"الإيرادات خلال الفترة", topProducts:"الأكثر مبيعًا",
+    revenueByBranch:"الإيرادات حسب الفرع", noDataYet:"لا توجد بيانات كافية بعد",
+    notifList:"الإشعارات المرسلة", sendNotification:"+ إرسال إشعار", noNotificationsYet:"لا توجد إشعارات مرسلة بعد",
+    notifTargetLabel:"المستهدف", targetAllCustomers:"كل العملاء", targetBranchCustomers:"عملاء فرع معيّن",
+    targetStaff:"الموظفين", notifTitle:"عنوان الإشعار", notifBody:"نص الإشعار", send:"إرسال",
+    notifSent:"تم إرسال الإشعار", notifFillRequired:"من فضلك أكمل العنوان والنص",
+    justNow:"الآن", minutesAgo:"دقيقة", hoursAgo:"ساعة", daysAgo:"يوم",
+    nav_inventory:"المخزون والتكاليف",
+    tabIngredients:"المكونات والمخزون", tabSuppliers:"الموردين", tabPurchaseOrders:"أوامر الشراء",
+    ingredientList:"قائمة المكونات", addIngredient:"+ إضافة مكوّن", noIngredientsYet:"لا توجد مكونات بعد",
+    colUnit:"الوحدة", colCostPerUnit:"تكلفة الوحدة", colCurrentStock:"المخزون الحالي",
+    colMinStock:"الحد الأدنى", colStorage:"مكان التخزين", unitPiece:"قطعة",
+    storageWarehouse:"مخزن", storageFridge:"ثلاجة", storageFreezer:"فريزر",
+    editIngredient:"تعديل مكوّن", ingredientSaved:"تم حفظ المكوّن", ingredientDeleted:"تم حذف المكوّن",
+    lowStock:"منخفض", stockOk:"متوفر",
+    supplierList:"قائمة الموردين", addSupplier:"+ إضافة مورد", noSuppliersYet:"لا يوجد موردين بعد",
+    colContactPerson:"الشخص المسؤول", editSupplier:"تعديل مورد",
+    supplierSaved:"تم حفظ المورد", supplierDeleted:"تم حذف المورد",
+    poList:"أوامر الشراء", addPO:"+ أمر شراء جديد", noPOsYet:"لا توجد أوامر شراء بعد",
+    colSupplier:"المورد", colItemsCount:"عدد الأصناف", colTotal:"الإجمالي",
+    poStatus_draft:"مسودة", poStatus_sent:"تم الإرسال", poStatus_received:"تم الاستلام",
+    poSaved:"تم حفظ أمر الشراء", poDeleted:"تم حذف أمر الشراء", markSent:"إرسال للمورد", markReceived:"تأكيد الاستلام",
+    noSupplierFirst:"أضف مورد واحد على الأقل أولاً", noIngredientFirst:"أضف مكوّن واحد على الأقل أولاً",
+    lowStockWarning:"مكون واحد وصل للحد الأدنى", lowStockWarningPlural:"مكونات وصلت للحد الأدنى",
+    viewShortages:"عرض النواقص",
+    recipeBOM:"مكونات الوصفة (BOM)", noBomLinesYet:"لا توجد مكونات مضافة بعد",
+    laborCost:"تكلفة العمالة/الطهي", otherCosts:"تكاليف أخرى",
+    ingredientsCost:"تكلفة المكونات", totalCost:"إجمالي التكلفة",
+    expectedProfit:"الربح المتوقع", profitMargin:"هامش الربح",
+    createPOFromShortage:"تم إنشاء أمر شراء تلقائي بالنواقص", selectSupplierFirst:"اختر مورد أولاً",
+    poReceivedStockUpdated:"تم الاستلام وتحديث المخزون",
+    insufficientStock:"مخزون غير كافي",
+    compressingImage:"جاري ضغط الصورة...", imageCompressFailed:"تعذّر معالجة الصورة — تم حفظ المنتج بدون تغيير الصورة",
+    supplierNotes:"ملاحظات (اختياري)",
+    stockDeductedFor:"تم خصم", noStockToDeduct:"مفيش مكونات مرتبطة بمنتجات هذا الطلب — لم يتم خصم أي مخزون",
+    loggingIn:"جاري الدخول...",
+    maxAvailable:"أقصى كمية متاحة", maxAvailableShort:"متاح", stockLimitReached:"وصلت للحد الأقصى المتاح من المخزون",
+    stockAvailabilityReport:"تقرير إتاحة المخزون", stockAvailabilityDesc:"أقصى عدد وحدات يمكن تجهيزها من كل منتج بناءً على المخزون الحالي للمكونات",
+    unlimitedStock:"غير محدود (لا يوجد وصفة مرتبطة)", zeroStockProduct:"غير متاح — نفد أحد المكونات",
+    bottleneckIngredient:"المكوّن المحدِّد", confirmReadyShortage:"هذا الطلب يحتاج مكونات ناقصة عن المخزون المتاح. هل تريد المتابعة رغم ذلك؟",
+    stockCannotBeNegative:"لا يمكن أن يكون المخزون رقمًا سالبًا — تم ضبطه على صفر"
+  },
+  en: {
+    loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
+    email:"Email", password:"Password", loginBtn:"Sign In",
+    platformName:"Restaurant Platform", logout:"Logout",
+    nav_dashboard:"Dashboard", nav_branches:"Branches", nav_menu:"Products & Menus",
+    nav_orders:"Orders", nav_staff:"Staff & Permissions", nav_reports:"Reports & Analytics",
+    nav_coupons:"Coupons & Discounts", nav_notifications:"Notifications",
+    allBranches:"All Branches", statBranches:"Branches", statOrdersToday:"Orders Today",
+    statPending:"— pending activation", statRevenueToday:"Revenue Today", statStaff:"Staff Members",
+    recentActivity:"Recent Activity", noActivityYet:"No activity yet — start by adding a branch or product",
+    branchList:"Branches List", addBranch:"+ Add Branch", noBranchesYet:"No branches added yet",
+    colName:"Name", colCity:"City", colPhone:"Phone", colStatus:"Status", colActions:"Actions",
+    branchName:"Branch Name", active:"Active", inactive:"Inactive", cancel:"Cancel", save:"Save",
+    ph_soon:"This module is under construction — coming in the next phase",
+    ph_menu_title:"Products & Menus Management", ph_orders_title:"Orders Management",
+    ph_staff_title:"Staff & Permissions", ph_reports_title:"Reports & Analytics",
+    ph_coupons_title:"Coupons & Discounts", ph_notif_title:"Notifications System",
+    editBranch:"Edit Branch", delete:"Delete", edit:"Edit",
+    fillRequired:"Please fill required fields", branchSaved:"Branch saved successfully",
+    branchDeleted:"Branch deleted", confirmDelete:"Are you sure you want to delete?",
+    loginFailed:"Login failed — check your credentials",
+    tabProducts:"Products", tabCategories:"Categories",
+    productList:"Products List", addProduct:"+ Add Product", noProductsYet:"No products yet",
+    categoryList:"Categories List", addCategory:"+ Add Category", noCategoriesYet:"No categories yet",
+    colNameAr:"Name (Arabic)", colNameEn:"Name (English)", colProductCount:"Products Count",
+    colPrice:"Price", colCategory:"Category", available:"Available", unavailable:"Unavailable",
+    uploadImage:"Click to upload product image", uploading:"Uploading image...",
+    editProduct:"Edit Product", editCategory:"Edit Category",
+    categorySaved:"Category saved", categoryDeleted:"Category deleted",
+    productSaved:"Product saved", productDeleted:"Product deleted",
+    noCategoryFirst:"Add at least one category first", allCategories:"All",
+    confirmDeleteCategory:"Deleting this category won't delete its products, but they'll become uncategorized. Continue?",
+    ordersBoard:"Orders Board", addOrder:"+ New Order", colBranch:"Branch",
+    orderType:"Order Type", dineIn:"Dine-in", takeaway:"Takeaway", delivery:"Delivery",
+    customerName:"Customer Name", customerPhone:"Phone Number", selectItems:"Select Items",
+    total:"Total", orderSaved:"Order saved", orderDeleted:"Order deleted",
+    noBranchFirst:"Add at least one branch first", noProductFirst:"Add at least one product first",
+    selectAtLeastOne:"Select at least one item",
+    status_pending:"New", status_preparing:"Preparing", status_ready:"Ready",
+    status_delivered:"Delivered", status_cancelled:"Cancelled",
+    markPreparing:"Start Preparing", markReady:"Mark Ready", markDelivered:"Deliver", markCancelled:"Cancel",
+    noOrdersInStatus:"No orders",
+    staffList:"Staff List", addStaff:"+ Add Staff", noStaffYet:"No staff added yet",
+    colRole:"Role", colPin:"Login Code", permissions:"Permissions",
+    role_manager:"Branch Manager", role_cashier:"Cashier", role_chef:"Chef", role_waiter:"Waiter",
+    perm_orders_view:"View Orders", perm_orders_edit:"Edit Orders",
+    perm_menu_edit:"Edit Menu", perm_reports_view:"View Reports",
+    perm_staff_manage:"Manage Staff", perm_coupons_manage:"Manage Coupons",
+    editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
+    pinMustBe4:"Login code must be at least 4 digits",
+    couponList:"Coupons List", addCoupon:"+ Add Coupon", noCouponsYet:"No coupons yet",
+    colCode:"Code", colDiscount:"Discount", colMinOrder:"Min Order", colUsage:"Usage",
+    colExpiry:"Expiry Date", discountType:"Discount Type", percentage:"Percentage %", fixedAmount:"Fixed Amount",
+    discountValue:"Discount Value", startDate:"Start Date", endDate:"End Date",
+    usageLimit:"Usage Limit (optional)", unlimited:"Unlimited",
+    editCoupon:"Edit Coupon", couponSaved:"Coupon saved", couponDeleted:"Coupon deleted",
+    codeRequired:"Code is required", codeExists:"This code is already in use", expired:"Expired",
+    couponCode:"Coupon Code (optional)", subtotal:"Subtotal", discount:"Discount",
+    couponInvalid:"Invalid code", couponExpired:"Coupon expired",
+    couponInactive:"Coupon inactive", couponMinOrder:"Minimum order value required",
+    couponLimitReached:"Coupon usage limit reached", couponApplied:"Coupon applied",
+    last7Days:"Last 7 Days", last30Days:"Last 30 Days", last90Days:"Last 90 Days",
+    reportTotalOrders:"Total Orders", reportTotalRevenue:"Total Revenue",
+    reportAvgOrder:"Avg Order Value", reportCancelled:"Cancelled Orders",
+    revenueOverTime:"Revenue Over Time", topProducts:"Top Selling Products",
+    revenueByBranch:"Revenue By Branch", noDataYet:"Not enough data yet",
+    notifList:"Sent Notifications", sendNotification:"+ Send Notification", noNotificationsYet:"No notifications sent yet",
+    notifTargetLabel:"Target", targetAllCustomers:"All Customers", targetBranchCustomers:"Branch Customers",
+    targetStaff:"Staff", notifTitle:"Notification Title", notifBody:"Notification Body", send:"Send",
+    notifSent:"Notification sent", notifFillRequired:"Please fill in title and body",
+    justNow:"Just now", minutesAgo:"min ago", hoursAgo:"hr ago", daysAgo:"days ago",
+    nav_inventory:"Inventory & Costs",
+    tabIngredients:"Ingredients & Stock", tabSuppliers:"Suppliers", tabPurchaseOrders:"Purchase Orders",
+    ingredientList:"Ingredients List", addIngredient:"+ Add Ingredient", noIngredientsYet:"No ingredients yet",
+    colUnit:"Unit", colCostPerUnit:"Cost/Unit", colCurrentStock:"Current Stock",
+    colMinStock:"Min Stock", colStorage:"Storage", unitPiece:"Piece",
+    storageWarehouse:"Warehouse", storageFridge:"Fridge", storageFreezer:"Freezer",
+    editIngredient:"Edit Ingredient", ingredientSaved:"Ingredient saved", ingredientDeleted:"Ingredient deleted",
+    lowStock:"Low", stockOk:"OK",
+    supplierList:"Suppliers List", addSupplier:"+ Add Supplier", noSuppliersYet:"No suppliers yet",
+    colContactPerson:"Contact Person", editSupplier:"Edit Supplier",
+    supplierSaved:"Supplier saved", supplierDeleted:"Supplier deleted",
+    poList:"Purchase Orders", addPO:"+ New Purchase Order", noPOsYet:"No purchase orders yet",
+    colSupplier:"Supplier", colItemsCount:"Items Count", colTotal:"Total",
+    poStatus_draft:"Draft", poStatus_sent:"Sent", poStatus_received:"Received",
+    poSaved:"Purchase order saved", poDeleted:"Purchase order deleted", markSent:"Send to Supplier", markReceived:"Confirm Received",
+    noSupplierFirst:"Add at least one supplier first", noIngredientFirst:"Add at least one ingredient first",
+    lowStockWarning:"ingredient is at or below minimum stock", lowStockWarningPlural:"ingredients are at or below minimum stock",
+    viewShortages:"View Shortages",
+    recipeBOM:"Recipe Ingredients (BOM)", noBomLinesYet:"No ingredients added yet",
+    laborCost:"Labor/Cooking Cost", otherCosts:"Other Costs",
+    ingredientsCost:"Ingredients Cost", totalCost:"Total Cost",
+    expectedProfit:"Expected Profit", profitMargin:"Profit Margin",
+    createPOFromShortage:"Draft purchase order created for shortages", selectSupplierFirst:"Select a supplier first",
+    poReceivedStockUpdated:"Received and stock updated",
+    insufficientStock:"Insufficient stock",
+    compressingImage:"Compressing image...", imageCompressFailed:"Couldn't process the image — product saved without changing the image",
+    supplierNotes:"Notes (optional)",
+    stockDeductedFor:"Stock deducted", noStockToDeduct:"No ingredients linked to this order's products — no stock was deducted",
+    loggingIn:"Signing in...",
+    maxAvailable:"Max available", maxAvailableShort:"available", stockLimitReached:"Reached the maximum quantity stock allows",
+    stockAvailabilityReport:"Stock Availability Report", stockAvailabilityDesc:"Maximum units of each product that can be prepared based on current ingredient stock",
+    unlimitedStock:"Unlimited (no recipe linked)", zeroStockProduct:"Unavailable — an ingredient is out of stock",
+    bottleneckIngredient:"Limiting ingredient", confirmReadyShortage:"This order needs more of some ingredients than is currently in stock. Continue anyway?",
+    stockCannotBeNegative:"Stock can't be negative — it was set to zero"
+  }
+};
+
+function applyTranslations(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    if(translations[currentLang][key]) el.textContent = translations[currentLang][key];
+  });
+}
+
+function toggleLang(){
+  currentLang = currentLang === 'ar' ? 'en' : 'ar';
+  document.documentElement.lang = currentLang;
+  document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+  document.getElementById('langToggleBtn').textContent = currentLang === 'ar' ? 'EN' : 'AR';
+  applyTranslations();
+  renderBranchesTable(); // refresh dynamic status labels
+  renderCategoriesTable();
+  renderCategoryFilterChips();
+  renderProductsGrid();
+  populateProductCategorySelect();
+  renderOrdersBoard();
+  renderStaffTable();
+  renderCouponsTable();
+  renderReports();
+  renderNotificationsList();
+  renderIngredientsTable();
+  renderLowStockBanner();
+  renderSuppliersTable();
+  renderPOTable();
+}
+
+function t(key){ return translations[currentLang][key] || key; }
+
+function showToast(msg){
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  const duration = msg.length > 40 ? 5000 : 2500;
+  setTimeout(()=> toast.style.display='none', duration);
+}
+
+/* ---------- Auth ---------- */
+function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errBox.style.display = 'none';
+  if(!email || !pass){
+    errBox.textContent = t('fillRequired');
+    errBox.style.display = 'block';
+    return;
+  }
+  // Disable + show a loading label while the request is in flight so a slow mobile
+  // connection shows visible feedback instead of looking frozen after tapping.
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = t('loggingIn');
+  auth.signInWithEmailAndPassword(email, pass)
+    .catch(err=>{
+      errBox.textContent = t('loginFailed') + ' (' + err.code + ')';
+      errBox.style.display = 'block';
+    })
+    .finally(()=>{
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
+}
+
+function doLogout(){
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(async (user)=>{
+  if(user){
+    currentUser = user;
+    // Each restaurant owner document is keyed by their UID at /restaurants/{uid}
+    // This is the multi-tenant root. Branches/menu/orders/staff live as subcollections under it.
+    currentRestaurantId = user.uid;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appShell').classList.add('active');
+    document.getElementById('restaurantNameLabel').textContent = user.email;
+    await loadBranches();
+    await loadCategories();
+    await loadProducts();
+    await loadStaff();
+    await loadCoupons();
+    await loadNotifications();
+    await loadIngredients();
+    await loadSuppliers();
+    await loadPurchaseOrders();
+    startOrdersListener();
+  } else {
+    currentUser = null;
+    currentRestaurantId = null;
+    if(ordersUnsubscribe){ ordersUnsubscribe(); ordersUnsubscribe = null; }
+    ordersCache = [];
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appShell').classList.remove('active');
+  }
+});
+
+/* ---------- Navigation ---------- */
+function showModule(name){
+  document.querySelectorAll('.module-content').forEach(m=> m.style.display='none');
+  document.getElementById('module-'+name).style.display='block';
+  document.querySelectorAll('.nav-item').forEach(n=> n.classList.remove('active'));
+  document.querySelector('.nav-item[data-module="'+name+'"]').classList.add('active');
+  document.getElementById('moduleTitle').textContent = t('nav_'+name);
+  if(name === 'reports') renderReports();
+  if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
+}
+
+function onBranchFilterChange(){
+  // Hook: used by Orders/Reports/Menu modules in later phases to scope data per branch
+}
+
+/* ---------- Branches (Firestore: restaurants/{rid}/branches/{branchId}) ---------- */
+function branchesCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('branches');
+}
+
+async function loadBranches(){
+  try{
+    const snap = await branchesCol().orderBy('createdAt','desc').get();
+    branchesCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderBranchesTable();
+    updateBranchFilterOptions();
+    document.getElementById('statBranchCount').textContent = branchesCache.length;
+  }catch(e){
+    console.error('loadBranches error', e);
+  }
+}
+
+function renderBranchesTable(){
+  const tbody = document.getElementById('branchesTbody');
+  const table = document.getElementById('branchesTable');
+  const empty = document.getElementById('branchesEmpty');
+  if(branchesCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = branchesCache.map(b=>{
+    const statusClass = b.status === 'active' ? 'badge-active' : 'badge-inactive';
+    const statusLabel = b.status === 'active' ? t('active') : t('inactive');
+    return `<tr>
+      <td>${escapeHtml(b.name||'')}</td>
+      <td>${escapeHtml(b.city||'')}</td>
+      <td>${escapeHtml(b.phone||'')}</td>
+      <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+      <td class="row-actions">
+        <button onclick="openBranchModal('${b.id}')" title="${t('edit')}">✏️</button>
+        <button onclick="deleteBranch('${b.id}')" title="${t('delete')}">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateBranchFilterOptions(){
+  const sel = document.getElementById('branchFilter');
+  const current = sel.value;
+  sel.innerHTML = `<option value="all">${t('allBranches')}</option>` +
+    branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+  sel.value = current && [...sel.options].some(o=>o.value===current) ? current : 'all';
+
+  const reportSel = document.getElementById('reportBranchSelect');
+  if(reportSel){
+    const currentR = reportSel.value;
+    reportSel.innerHTML = `<option value="all">${t('allBranches')}</option>` +
+      branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+    reportSel.value = currentR && [...reportSel.options].some(o=>o.value===currentR) ? currentR : 'all';
+  }
+}
+
+function openBranchModal(branchId){
+  editingBranchId = branchId || null;
+  document.getElementById('branchModalTitle').textContent = branchId ? t('editBranch') : t('addBranch');
+  if(branchId){
+    const b = branchesCache.find(x=> x.id === branchId);
+    document.getElementById('branchNameInput').value = b.name || '';
+    document.getElementById('branchCityInput').value = b.city || '';
+    document.getElementById('branchPhoneInput').value = b.phone || '';
+    document.getElementById('branchStatusInput').value = b.status || 'active';
+  } else {
+    document.getElementById('branchNameInput').value = '';
+    document.getElementById('branchCityInput').value = '';
+    document.getElementById('branchPhoneInput').value = '';
+    document.getElementById('branchStatusInput').value = 'active';
+  }
+  document.getElementById('branchModal').classList.add('active');
+}
+
+function closeBranchModal(){
+  document.getElementById('branchModal').classList.remove('active');
+}
+
+async function saveBranch(){
+  const name = document.getElementById('branchNameInput').value.trim();
+  const city = document.getElementById('branchCityInput').value.trim();
+  const phone = document.getElementById('branchPhoneInput').value.trim();
+  const status = document.getElementById('branchStatusInput').value;
+
+  if(!name){
+    showToast(t('fillRequired'));
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveBranchBtn');
+  saveBtn.disabled = true;
+  try{
+    if(editingBranchId){
+      await branchesCol().doc(editingBranchId).update({ name, city, phone, status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await branchesCol().add({ name, city, phone, status, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeBranchModal();
+    showToast(t('branchSaved'));
+    await loadBranches();
+  }catch(e){
+    console.error('saveBranch error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteBranch(branchId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await branchesCol().doc(branchId).delete();
+    showToast(t('branchDeleted'));
+    await loadBranches();
+  }catch(e){
+    console.error('deleteBranch error', e);
+    showToast(e.message);
+  }
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ---------- Menu Tabs ---------- */
+function switchMenuTab(tab){
+  document.querySelectorAll('#module-menu .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('#module-menu .tab-pane').forEach(p=> p.classList.remove('active'));
+  document.getElementById('menuTab-'+tab).classList.add('active');
+}
+
+function switchInventoryTab(tab){
+  showModule('inventory');
+  document.querySelectorAll('#module-inventory .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.invtab===tab));
+  document.querySelectorAll('#module-inventory .tab-pane').forEach(p=> p.classList.remove('active'));
+  document.getElementById('invTab-'+tab).classList.add('active');
+}
+
+/* ---------- Categories (Firestore: restaurants/{rid}/categories/{categoryId}) ---------- */
+function categoriesCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('categories');
+}
+
+async function loadCategories(){
+  try{
+    const snap = await categoriesCol().orderBy('createdAt','asc').get();
+    categoriesCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderCategoriesTable();
+    renderCategoryFilterChips();
+    populateProductCategorySelect();
+  }catch(e){
+    console.error('loadCategories error', e);
+  }
+}
+
+function renderCategoriesTable(){
+  const tbody = document.getElementById('categoriesTbody');
+  const table = document.getElementById('categoriesTable');
+  const empty = document.getElementById('categoriesEmpty');
+  if(categoriesCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = categoriesCache.map(c=>{
+    const count = productsCache.filter(p=> p.categoryId === c.id).length;
+    return `<tr>
+      <td>${escapeHtml(c.name_ar||'')}</td>
+      <td>${escapeHtml(c.name_en||'')}</td>
+      <td>${count}</td>
+      <td class="row-actions">
+        <button onclick="openCategoryModal('${c.id}')" title="${t('edit')}">✏️</button>
+        <button onclick="deleteCategory('${c.id}')" title="${t('delete')}">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function categoryDisplayName(c){
+  return currentLang === 'ar' ? (c.name_ar || c.name_en) : (c.name_en || c.name_ar);
+}
+
+function renderCategoryFilterChips(){
+  const wrap = document.getElementById('categoryFilterChips');
+  if(!wrap) return;
+  const chips = [`<div class="chip ${activeCategoryFilter==='all'?'active':''}" onclick="setActiveCategoryFilter('all')">${t('allCategories')}</div>`]
+    .concat(categoriesCache.map(c=>
+      `<div class="chip ${activeCategoryFilter===c.id?'active':''}" onclick="setActiveCategoryFilter('${c.id}')">${escapeHtml(categoryDisplayName(c))}</div>`
+    ));
+  wrap.innerHTML = chips.join('');
+}
+
+function setActiveCategoryFilter(catId){
+  activeCategoryFilter = catId;
+  renderCategoryFilterChips();
+  renderProductsGrid();
+}
+
+function populateProductCategorySelect(){
+  const sel = document.getElementById('productCategoryInput');
+  if(!sel) return;
+  sel.innerHTML = categoriesCache.map(c=> `<option value="${c.id}">${escapeHtml(categoryDisplayName(c))}</option>`).join('');
+}
+
+function openCategoryModal(categoryId){
+  editingCategoryId = categoryId || null;
+  document.getElementById('categoryModalTitle').textContent = categoryId ? t('editCategory') : t('addCategory');
+  if(categoryId){
+    const c = categoriesCache.find(x=> x.id === categoryId);
+    document.getElementById('categoryNameArInput').value = c.name_ar || '';
+    document.getElementById('categoryNameEnInput').value = c.name_en || '';
+  } else {
+    document.getElementById('categoryNameArInput').value = '';
+    document.getElementById('categoryNameEnInput').value = '';
+  }
+  document.getElementById('categoryModal').classList.add('active');
+}
+
+function closeCategoryModal(){
+  document.getElementById('categoryModal').classList.remove('active');
+}
+
+async function saveCategory(){
+  const name_ar = document.getElementById('categoryNameArInput').value.trim();
+  const name_en = document.getElementById('categoryNameEnInput').value.trim();
+  if(!name_ar && !name_en){
+    showToast(t('fillRequired'));
+    return;
+  }
+  const saveBtn = document.getElementById('saveCategoryBtn');
+  saveBtn.disabled = true;
+  try{
+    if(editingCategoryId){
+      await categoriesCol().doc(editingCategoryId).update({ name_ar, name_en, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await categoriesCol().add({ name_ar, name_en, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeCategoryModal();
+    showToast(t('categorySaved'));
+    await loadCategories();
+  }catch(e){
+    console.error('saveCategory error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteCategory(categoryId){
+  if(!confirm(t('confirmDeleteCategory'))) return;
+  try{
+    await categoriesCol().doc(categoryId).delete();
+    if(activeCategoryFilter === categoryId) activeCategoryFilter = 'all';
+    showToast(t('categoryDeleted'));
+    await loadCategories();
+    await loadProducts();
+  }catch(e){
+    console.error('deleteCategory error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Products (Firestore: restaurants/{rid}/products/{productId}) ---------- */
+function productsCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('products');
+}
+
+async function loadProducts(){
+  try{
+    const snap = await productsCol().orderBy('createdAt','desc').get();
+    productsCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderProductsGrid();
+    renderCategoriesTable();
+  }catch(e){
+    console.error('loadProducts error', e);
+  }
+}
+
+function renderProductsGrid(){
+  const grid = document.getElementById('productsGrid');
+  const empty = document.getElementById('productsEmpty');
+  if(!grid) return;
+  const filtered = activeCategoryFilter === 'all'
+    ? productsCache
+    : productsCache.filter(p=> p.categoryId === activeCategoryFilter);
+
+  if(filtered.length === 0){
+    grid.style.display='none'; empty.style.display='block';
+    return;
+  }
+  grid.style.display='grid'; empty.style.display='none';
+  grid.innerHTML = filtered.map(p=>{
+    const cat = categoriesCache.find(c=> c.id === p.categoryId);
+    const catName = cat ? categoryDisplayName(cat) : '';
+    const name = currentLang==='ar' ? (p.name_ar||p.name_en) : (p.name_en||p.name_ar);
+    const imgHtml = p.imageUrl
+      ? `<div class="product-img" style="background-image:url('${p.imageUrl}')"></div>`
+      : `<div class="product-img">🍽️</div>`;
+    const badge = p.available === false ? `<span class="unavailable-badge">${t('unavailable')}</span>` : '';
+    let profitHtml = '';
+    if(p.totalCost !== undefined && p.totalCost !== null){
+      const profit = (p.price||0) - p.totalCost;
+      const profitColor = profit >= 0 ? 'var(--ok)' : 'var(--danger)';
+      profitHtml = `<div style="font-size:11px; color:${profitColor}; margin-top:2px;">${t('expectedProfit')}: ${profit.toFixed(2)}</div>`;
+    }
+    return `<div class="product-card">
+      ${badge}
+      ${imgHtml}
+      <div class="product-body">
+        <h4 title="${escapeHtml(name)}">${escapeHtml(name)}</h4>
+        <div class="price">${Number(p.price||0).toFixed(2)}</div>
+        <div class="cat-label">${escapeHtml(catName)}</div>
+        ${profitHtml}
+        <div class="product-actions">
+          <button onclick="openProductModal('${p.id}')">✏️</button>
+          <button onclick="deleteProduct('${p.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openProductModal(productId){
+  if(categoriesCache.length === 0){
+    showToast(t('noCategoryFirst'));
+    return;
+  }
+  editingProductId = productId || null;
+  selectedProductImageFile = null;
+  populateProductCategorySelect();
+  populateBomIngredientSelect();
+  document.getElementById('productModalTitle').textContent = productId ? t('editProduct') : t('addProduct');
+  document.getElementById('productUploadProgress').style.display = 'none';
+
+  const preview = document.getElementById('productImgPreview');
+  const hint = document.getElementById('productImgHint');
+
+  if(productId){
+    const p = productsCache.find(x=> x.id === productId);
+    document.getElementById('productNameArInput').value = p.name_ar || '';
+    document.getElementById('productNameEnInput').value = p.name_en || '';
+    document.getElementById('productPriceInput').value = p.price || '';
+    document.getElementById('productCategoryInput').value = p.categoryId || '';
+    document.getElementById('productAvailableInput').checked = p.available !== false;
+    document.getElementById('productLaborCostInput').value = p.laborCost || '';
+    document.getElementById('productOtherCostsInput').value = p.otherCosts || '';
+    currentProductBom = { ...(p.bom || {}) };
+    existingProductImageUrl = p.imageUrl || '';
+    if(existingProductImageUrl){
+      preview.src = existingProductImageUrl;
+      preview.style.display = 'block';
+      hint.style.display = 'none';
+    } else {
+      preview.style.display = 'none';
+      hint.style.display = 'block';
+    }
+  } else {
+    document.getElementById('productNameArInput').value = '';
+    document.getElementById('productNameEnInput').value = '';
+    document.getElementById('productPriceInput').value = '';
+    document.getElementById('productAvailableInput').checked = true;
+    document.getElementById('productLaborCostInput').value = '';
+    document.getElementById('productOtherCostsInput').value = '';
+    currentProductBom = {};
+    existingProductImageUrl = '';
+    preview.style.display = 'none';
+    hint.style.display = 'block';
+  }
+  document.getElementById('productImageInput').value = '';
+  renderBomLines();
+  document.getElementById('productModal').classList.add('active');
+}
+
+function closeProductModal(){
+  document.getElementById('productModal').classList.remove('active');
+  currentProductBom = {};
+}
+
+function onProductImageSelected(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  selectedProductImageFile = file;
+  const preview = document.getElementById('productImgPreview');
+  const hint = document.getElementById('productImgHint');
+  const reader = new FileReader();
+  reader.onload = e=>{
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    hint.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+// Compresses an image file client-side and returns a base64 data URL small enough
+// to store directly inside a Firestore document (no Storage/Blaze plan needed).
+function compressImageToBase64(file, maxDimension, quality){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e=>{ img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = ()=>{
+      let { width, height } = img;
+      if(width > height && width > maxDimension){
+        height = Math.round(height * (maxDimension/width));
+        width = maxDimension;
+      } else if(height > maxDimension){
+        width = Math.round(width * (maxDimension/height));
+        height = maxDimension;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,width,height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Iteratively shrinks quality/dimensions until the base64 result fits comfortably
+// inside a Firestore document (kept well under the 1MiB document limit).
+async function compressImageForFirestore(file){
+  const MAX_BASE64_CHARS = 350000; // ~250KB actual image data, leaves plenty of room in the document
+  let maxDimension = 700;
+  let quality = 0.7;
+  let result = await compressImageToBase64(file, maxDimension, quality);
+
+  let attempts = 0;
+  while(result.length > MAX_BASE64_CHARS && attempts < 5){
+    quality = Math.max(0.35, quality - 0.15);
+    maxDimension = Math.max(300, maxDimension - 100);
+    result = await compressImageToBase64(file, maxDimension, quality);
+    attempts++;
+  }
+  return result;
+}
+
+async function saveProduct(){
+  const name_ar = document.getElementById('productNameArInput').value.trim();
+  const name_en = document.getElementById('productNameEnInput').value.trim();
+  const price = parseFloat(document.getElementById('productPriceInput').value);
+  const categoryId = document.getElementById('productCategoryInput').value;
+  const available = document.getElementById('productAvailableInput').checked;
+  const laborCost = parseFloat(document.getElementById('productLaborCostInput').value) || 0;
+  const otherCosts = parseFloat(document.getElementById('productOtherCostsInput').value) || 0;
+  const bom = { ...currentProductBom };
+  const ingredientsCost = computeBomCost();
+  const totalCost = ingredientsCost + laborCost + otherCosts;
+
+  if((!name_ar && !name_en) || isNaN(price) || !categoryId){
+    showToast(t('fillRequired'));
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveProductBtn');
+  saveBtn.disabled = true;
+
+  try{
+    let imageUrl = existingProductImageUrl;
+
+    if(selectedProductImageFile){
+      const progressEl = document.getElementById('productUploadProgress');
+      progressEl.style.display = 'block';
+      progressEl.textContent = t('compressingImage');
+      try{
+        imageUrl = await compressImageForFirestore(selectedProductImageFile);
+      }catch(imgErr){
+        console.error('image compression error', imgErr);
+        showToast(t('imageCompressFailed'));
+        imageUrl = existingProductImageUrl; // keep whatever was there before, don't block saving the product
+      }
+      progressEl.style.display = 'none';
+    }
+
+    const data = { name_ar, name_en, price, categoryId, available, imageUrl, laborCost, otherCosts, bom, ingredientsCost, totalCost };
+
+    if(editingProductId){
+      await productsCol().doc(editingProductId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await productsCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeProductModal();
+    showToast(t('productSaved'));
+    await loadProducts();
+    renderStockAvailabilityReport(); // BOM may have changed, refresh producible quantities
+  }catch(e){
+    console.error('saveProduct error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteProduct(productId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await productsCol().doc(productId).delete();
+    showToast(t('productDeleted'));
+    await loadProducts();
+  }catch(e){
+    console.error('deleteProduct error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Orders (Firestore: restaurants/{rid}/orders/{orderId}) — real-time ---------- */
+function ordersCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('orders');
+}
+
+function startOrdersListener(){
+  if(ordersUnsubscribe) ordersUnsubscribe();
+  ordersUnsubscribe = ordersCol().orderBy('createdAt','desc').onSnapshot(snap=>{
+    ordersCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderOrdersBoard();
+    renderReports();
+  }, err=> console.error('orders listener error', err));
+}
+
+function renderOrdersBoard(){
+  const board = document.getElementById('ordersBoard');
+  if(!board) return;
+  board.innerHTML = ORDER_STATUSES.map(status=>{
+    const ordersInStatus = ordersCache.filter(o=> (o.status||'pending') === status);
+    const cardsHtml = ordersInStatus.length === 0
+      ? `<div style="text-align:center; color:var(--muted); font-size:12px; padding:20px 0;">${t('noOrdersInStatus')}</div>`
+      : ordersInStatus.map(o=> renderOrderCard(o)).join('');
+    return `<div class="order-col">
+      <div class="order-col-head">
+        <h4>${t('status_'+status)}</h4>
+        <span class="order-col-count">${ordersInStatus.length}</span>
+      </div>
+      <div class="order-col-body">${cardsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function checkOrderStockShortage(o){
+  const shortages = [];
+  (o.items||[]).forEach(item=>{
+    const product = productsCache.find(p=> p.id === item.productId);
+    if(!product || !product.bom) return;
+    Object.entries(product.bom).forEach(([ingId, qtyPerUnit])=>{
+      const ing = ingredientsCache.find(x=> x.id === ingId);
+      if(!ing) return;
+      const needed = qtyPerUnit * item.qty;
+      if(needed > (ing.currentStock||0)){
+        shortages.push(ing.name);
+      }
+    });
+  });
+  return [...new Set(shortages)];
+}
+
+function renderOrderCard(o){
+  const branch = branchesCache.find(b=> b.id === o.branchId);
+  const branchName = branch ? branch.name : '';
+  const itemsSummary = (o.items||[]).map(it=> `${it.qty}× ${escapeHtml(it.name)}`).join('، ');
+  const typeLabel = t(o.orderType === 'dine-in' ? 'dineIn' : o.orderType === 'takeaway' ? 'takeaway' : 'delivery');
+  const shortId = o.id.slice(0,6).toUpperCase();
+
+  let actionsHtml = '';
+  let shortageHtml = '';
+  if(o.status === 'pending'){
+    actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','preparing')">${t('markPreparing')}</button>
+      <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('markCancelled')}</button>`;
+  } else if(o.status === 'preparing'){
+    actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','ready')">${t('markReady')}</button>`;
+    const shortages = checkOrderStockShortage(o);
+    if(shortages.length > 0){
+      shortageHtml = `<div style="font-size:11px; color:var(--danger); margin-bottom:6px;">⚠️ ${t('insufficientStock')}: ${shortages.map(escapeHtml).join('، ')}</div>`;
+    }
+  } else if(o.status === 'ready'){
+    actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>`;
+  }
+
+  return `<div class="order-card status-${o.status||'pending'}">
+    <div class="order-card-top">
+      <span class="oid">#${shortId}</span>
+      <span class="otype">${typeLabel}</span>
+    </div>
+    <div class="customer">${escapeHtml(o.customerName || '—')}</div>
+    <div class="branch-tag">🏢 ${escapeHtml(branchName)}</div>
+    <div class="items-summary">${itemsSummary}</div>
+    ${o.couponCode ? `<div style="font-size:11px; color:var(--ok); margin-bottom:4px;">🏷️ ${escapeHtml(o.couponCode)}</div>` : ''}
+    <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
+    ${shortageHtml}
+    ${actionsHtml ? `<div class="order-card-actions">${actionsHtml}</div>` : ''}
+  </div>`;
+}
+
+async function updateOrderStatus(orderId, newStatus){
+  try{
+    const order = ordersCache.find(x=> x.id === orderId);
+    // Warn before completing an order that would need more of an ingredient than is
+    // currently in stock — deduction still floors at zero, but staff should confirm
+    // knowingly rather than silently under-fulfilling.
+    if(newStatus === 'ready' && order && !order.stockDeducted){
+      const shortages = checkOrderStockShortage(order);
+      if(shortages.length > 0 && !confirm(t('confirmReadyShortage') + '\n' + shortages.join('، '))){
+        return;
+      }
+    }
+    await ordersCol().doc(orderId).update({ status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+
+    // Deduct ingredient stock only once, at the moment an order becomes "ready" —
+    // avoids reversing stock on cancellation since deduction hasn't happened yet for pending/preparing orders.
+    if(newStatus === 'ready' && order && !order.stockDeducted){
+      const deductedNames = await deductStockForOrder(order);
+      await ordersCol().doc(orderId).update({ stockDeducted:true });
+      if(deductedNames.length > 0){
+        showToast(t('stockDeductedFor') + ': ' + deductedNames.join('، '));
+      } else {
+        showToast(t('noStockToDeduct'));
+      }
+    }
+  }catch(e){
+    console.error('updateOrderStatus error', e);
+    showToast(e.message);
+  }
+}
+
+async function deductStockForOrder(order){
+  const deductions = {}; // { ingredientId: totalQtyToDeduct }
+  const itemsWithoutBom = [];
+
+  (order.items||[]).forEach(item=>{
+    const product = productsCache.find(p=> p.id === item.productId);
+    if(!product || !product.bom || Object.keys(product.bom).length === 0){
+      itemsWithoutBom.push(item.name);
+      return;
+    }
+    Object.entries(product.bom).forEach(([ingId, qtyPerUnit])=>{
+      deductions[ingId] = (deductions[ingId]||0) + (qtyPerUnit * item.qty);
+    });
+  });
+
+  const ingredientIds = Object.keys(deductions);
+  if(ingredientIds.length === 0) return [];
+
+  const deductedNames = [];
+  try{
+    const batch = db.batch();
+    ingredientIds.forEach(ingId=>{
+      const ing = ingredientsCache.find(x=> x.id === ingId);
+      if(ing){
+        const newStock = Math.max(0, (ing.currentStock||0) - deductions[ingId]);
+        batch.update(ingredientsCol().doc(ingId), { currentStock: newStock });
+        deductedNames.push(`${ing.name} (-${deductions[ingId]})`);
+      }
+    });
+    await batch.commit();
+    await loadIngredients();
+  }catch(e){
+    console.error('deductStockForOrder error', e);
+  }
+  return deductedNames;
+}
+
+function openOrderModal(){
+  if(branchesCache.length === 0){ showToast(t('noBranchFirst')); return; }
+  if(productsCache.length === 0){ showToast(t('noProductFirst')); return; }
+
+  orderItemsSelection = {};
+  appliedCoupon = null;
+  document.getElementById('orderCustomerNameInput').value = '';
+  document.getElementById('orderCustomerPhoneInput').value = '';
+  document.getElementById('orderTypeInput').value = 'dine-in';
+  document.getElementById('orderCouponInput').value = '';
+  document.getElementById('couponFeedback').textContent = '';
+
+  const branchSel = document.getElementById('orderBranchInput');
+  branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+
+  renderOrderItemsPicker();
+  updateOrderTotalDisplay();
+  document.getElementById('orderModal').classList.add('active');
+}
+
+function closeOrderModal(){
+  document.getElementById('orderModal').classList.remove('active');
+}
+
+// Returns the maximum number of units of a product that current ingredient stock allows,
+// based on its BOM (recipe). Products with no BOM linked have no stock ceiling (Infinity).
+// The limiting ("bottleneck") ingredient is whichever BOM line yields the smallest quotient.
+function computeMaxProducible(product){
+  if(!product || !product.bom || Object.keys(product.bom).length === 0){
+    return { max: Infinity, bottleneck: null };
+  }
+  let max = Infinity;
+  let bottleneck = null;
+  Object.entries(product.bom).forEach(([ingId, qtyPerUnit])=>{
+    if(!qtyPerUnit || qtyPerUnit <= 0) return;
+    const ing = ingredientsCache.find(x=> x.id === ingId);
+    const stock = ing ? (ing.currentStock||0) : 0;
+    const possible = Math.floor(stock / qtyPerUnit);
+    if(possible < max){
+      max = possible;
+      bottleneck = ing ? ing.name : null;
+    }
+  });
+  return { max: Math.max(0, max), bottleneck };
+}
+
+function renderOrderItemsPicker(){
+  const wrap = document.getElementById('orderItemsPicker');
+  const available = productsCache.filter(p=> p.available !== false);
+  wrap.innerHTML = available.map(p=>{
+    const name = currentLang==='ar' ? (p.name_ar||p.name_en) : (p.name_en||p.name_ar);
+    const qty = orderItemsSelection[p.id] || 0;
+    const { max, bottleneck } = computeMaxProducible(p);
+    const atMax = qty >= max;
+    // Show how many units the current ingredient stock allows, so staff can see the
+    // ceiling before they try to exceed it — and disable "+" once they hit it.
+    const maxLabel = isFinite(max)
+      ? `<div class="p-max-stock" style="font-size:11px; color:${max===0?'var(--danger)':'var(--muted)'}; margin-top:2px;">${max===0 ? t('zeroStockProduct') : `${t('maxAvailableShort')}: ${max}`}${bottleneck && max<=3 ? ` (${escapeHtml(bottleneck)})` : ''}</div>`
+      : '';
+    return `<div class="picker-row">
+      <div style="flex:1; min-width:0;">
+        <span class="p-name">${escapeHtml(name)}</span>
+        ${maxLabel}
+      </div>
+      <span class="p-price">${Number(p.price||0).toFixed(2)}</span>
+      <div class="qty-control">
+        <button onclick="changeOrderItemQty('${p.id}', -1)">−</button>
+        <span id="qty-${p.id}">${qty}</span>
+        <button onclick="changeOrderItemQty('${p.id}', 1)" ${atMax ? 'disabled title="'+t('stockLimitReached')+'"' : ''}>+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function changeOrderItemQty(productId, delta){
+  const product = productsCache.find(p=> p.id === productId);
+  const { max } = computeMaxProducible(product);
+  const current = orderItemsSelection[productId] || 0;
+  let next = Math.max(0, current + delta);
+  if(delta > 0 && next > max){
+    next = max;
+    if(current >= max){
+      showToast(t('stockLimitReached'));
+      return;
+    }
+  }
+  if(next === 0){
+    delete orderItemsSelection[productId];
+  } else {
+    orderItemsSelection[productId] = next;
+  }
+  // Re-render the whole picker (not just the qty span) so the "+" button's disabled
+  // state and the max-available label stay in sync with the new quantity.
+  renderOrderItemsPicker();
+  updateOrderTotalDisplay();
+}
+
+function computeOrderSubtotal(){
+  let subtotal = 0;
+  Object.entries(orderItemsSelection).forEach(([pid, qty])=>{
+    const p = productsCache.find(x=> x.id === pid);
+    if(p) subtotal += (p.price||0) * qty;
+  });
+  return subtotal;
+}
+
+function computeDiscount(subtotal){
+  if(!appliedCoupon) return 0;
+  if(appliedCoupon.type === 'percentage'){
+    return subtotal * (appliedCoupon.value/100);
+  }
+  return Math.min(appliedCoupon.value, subtotal);
+}
+
+function computeOrderTotal(){
+  const subtotal = computeOrderSubtotal();
+  const discount = computeDiscount(subtotal);
+  return Math.max(0, subtotal - discount);
+}
+
+function applyOrderCoupon(){
+  const codeRaw = document.getElementById('orderCouponInput').value.trim().toUpperCase();
+  const feedback = document.getElementById('couponFeedback');
+  appliedCoupon = null;
+
+  if(!codeRaw){
+    feedback.textContent = '';
+    feedback.style.color = '';
+    updateOrderTotalDisplay();
+    return;
+  }
+
+  const coupon = couponsCache.find(c=> c.code === codeRaw);
+  const subtotal = computeOrderSubtotal();
+
+  if(!coupon){
+    feedback.textContent = t('couponInvalid');
+    feedback.style.color = 'var(--danger)';
+  } else if(coupon.active === false){
+    feedback.textContent = t('couponInactive');
+    feedback.style.color = 'var(--danger)';
+  } else if(isCouponExpired(coupon)){
+    feedback.textContent = t('couponExpired');
+    feedback.style.color = 'var(--danger)';
+  } else if(coupon.usageLimit && (coupon.usedCount||0) >= coupon.usageLimit){
+    feedback.textContent = t('couponLimitReached');
+    feedback.style.color = 'var(--danger)';
+  } else if(coupon.minOrderValue && subtotal < coupon.minOrderValue){
+    feedback.textContent = t('couponMinOrder') + ' ' + Number(coupon.minOrderValue).toFixed(2);
+    feedback.style.color = 'var(--danger)';
+  } else {
+    appliedCoupon = coupon;
+    feedback.textContent = t('couponApplied');
+    feedback.style.color = 'var(--ok)';
+  }
+  updateOrderTotalDisplay();
+}
+
+function updateOrderTotalDisplay(){
+  const subtotal = computeOrderSubtotal();
+  const discount = computeDiscount(subtotal);
+  const total = Math.max(0, subtotal - discount);
+
+  const subtotalLine = document.getElementById('orderSubtotalLine');
+  const discountLine = document.getElementById('orderDiscountLine');
+
+  if(appliedCoupon && discount > 0){
+    subtotalLine.style.display = 'flex';
+    discountLine.style.display = 'flex';
+    document.getElementById('orderSubtotalDisplay').textContent = subtotal.toFixed(2);
+    document.getElementById('orderDiscountDisplay').textContent = '-' + discount.toFixed(2);
+  } else {
+    subtotalLine.style.display = 'none';
+    discountLine.style.display = 'none';
+  }
+  document.getElementById('orderTotalDisplay').textContent = total.toFixed(2);
+}
+
+async function saveOrder(){
+  const branchId = document.getElementById('orderBranchInput').value;
+  const orderType = document.getElementById('orderTypeInput').value;
+  const customerName = document.getElementById('orderCustomerNameInput').value.trim();
+  const customerPhone = document.getElementById('orderCustomerPhoneInput').value.trim();
+
+  const entries = Object.entries(orderItemsSelection);
+  if(entries.length === 0){
+    showToast(t('selectAtLeastOne'));
+    return;
+  }
+
+  const items = entries.map(([pid, qty])=>{
+    const p = productsCache.find(x=> x.id === pid);
+    const name = currentLang==='ar' ? (p.name_ar||p.name_en) : (p.name_en||p.name_ar);
+    return { productId: pid, name, price: p.price||0, qty };
+  });
+  const subtotal = computeOrderSubtotal();
+  const discount = computeDiscount(subtotal);
+  const total = Math.max(0, subtotal - discount);
+
+  const saveBtn = document.getElementById('saveOrderBtn');
+  saveBtn.disabled = true;
+  try{
+    await ordersCol().add({
+      branchId, orderType, customerName, customerPhone, items,
+      subtotal, discount, total,
+      couponCode: appliedCoupon ? appliedCoupon.code : null,
+      status: 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    if(appliedCoupon){
+      await couponsCol().doc(appliedCoupon.id).update({ usedCount: firebase.firestore.FieldValue.increment(1) });
+      await loadCoupons();
+    }
+    closeOrderModal();
+    showToast(t('orderSaved'));
+  }catch(e){
+    console.error('saveOrder error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+/* ---------- Staff (Firestore: restaurants/{rid}/staff/{staffId}) ---------- */
+function staffCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('staff');
+}
+
+async function loadStaff(){
+  try{
+    const snap = await staffCol().orderBy('createdAt','desc').get();
+    staffCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderStaffTable();
+    document.getElementById('statStaffCount').textContent = staffCache.length;
+  }catch(e){
+    console.error('loadStaff error', e);
+  }
+}
+
+function renderStaffTable(){
+  const tbody = document.getElementById('staffTbody');
+  const table = document.getElementById('staffTable');
+  const empty = document.getElementById('staffEmpty');
+  if(staffCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = staffCache.map(s=>{
+    const branch = branchesCache.find(b=> b.id === s.branchId);
+    const statusClass = s.active !== false ? 'badge-active' : 'badge-inactive';
+    const statusLabel = s.active !== false ? t('active') : t('inactive');
+    return `<tr>
+      <td>${escapeHtml(s.name||'')}</td>
+      <td><span class="role-badge">${t('role_'+s.role)}</span></td>
+      <td>${escapeHtml(branch ? branch.name : '')}</td>
+      <td>${escapeHtml(s.pin||'')}</td>
+      <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+      <td class="row-actions">
+        <button onclick="openStaffModal('${s.id}')" title="${t('edit')}">✏️</button>
+        <button onclick="deleteStaff('${s.id}')" title="${t('delete')}">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPermGrid(selectedPerms){
+  const wrap = document.getElementById('staffPermGrid');
+  wrap.innerHTML = ALL_PERMISSIONS.map(p=>{
+    const checked = selectedPerms.includes(p) ? 'checked' : '';
+    return `<label class="perm-item">
+      <input type="checkbox" value="${p}" ${checked}>
+      <span>${t('perm_'+p)}</span>
+    </label>`;
+  }).join('');
+}
+
+function onStaffRoleChange(){
+  const role = document.getElementById('staffRoleInput').value;
+  renderPermGrid(ROLE_DEFAULT_PERMS[role] || []);
+}
+
+function getSelectedPerms(){
+  return [...document.querySelectorAll('#staffPermGrid input:checked')].map(i=> i.value);
+}
+
+function openStaffModal(staffId){
+  if(branchesCache.length === 0){ showToast(t('noBranchFirst')); return; }
+  editingStaffId = staffId || null;
+  document.getElementById('staffModalTitle').textContent = staffId ? t('editStaff') : t('addStaff');
+
+  const branchSel = document.getElementById('staffBranchInput');
+  branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+
+  if(staffId){
+    const s = staffCache.find(x=> x.id === staffId);
+    document.getElementById('staffNameInput').value = s.name || '';
+    document.getElementById('staffPhoneInput').value = s.phone || '';
+    document.getElementById('staffRoleInput').value = s.role || 'cashier';
+    document.getElementById('staffBranchInput').value = s.branchId || '';
+    document.getElementById('staffPinInput').value = s.pin || '';
+    document.getElementById('staffActiveInput').checked = s.active !== false;
+    renderPermGrid(s.permissions || ROLE_DEFAULT_PERMS[s.role] || []);
+  } else {
+    document.getElementById('staffNameInput').value = '';
+    document.getElementById('staffPhoneInput').value = '';
+    document.getElementById('staffRoleInput').value = 'cashier';
+    document.getElementById('staffPinInput').value = '';
+    document.getElementById('staffActiveInput').checked = true;
+    renderPermGrid(ROLE_DEFAULT_PERMS['cashier']);
+  }
+  document.getElementById('staffModal').classList.add('active');
+}
+
+function closeStaffModal(){
+  document.getElementById('staffModal').classList.remove('active');
+}
+
+async function saveStaff(){
+  const name = document.getElementById('staffNameInput').value.trim();
+  const phone = document.getElementById('staffPhoneInput').value.trim();
+  const role = document.getElementById('staffRoleInput').value;
+  const branchId = document.getElementById('staffBranchInput').value;
+  const pin = document.getElementById('staffPinInput').value.trim();
+  const active = document.getElementById('staffActiveInput').checked;
+  const permissions = getSelectedPerms();
+
+  if(!name || !branchId){
+    showToast(t('fillRequired'));
+    return;
+  }
+  if(pin && pin.length < 4){
+    showToast(t('pinMustBe4'));
+    return;
+  }
+
+  try{
+    const saveBtn = document.getElementById('saveStaffBtn');
+    saveBtn.disabled = true;
+    const data = { name, phone, role, branchId, pin, active, permissions };
+    if(editingStaffId){
+      await staffCol().doc(editingStaffId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await staffCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeStaffModal();
+    showToast(t('staffSaved'));
+    await loadStaff();
+  }catch(e){
+    console.error('saveStaff error', e);
+    showToast(e.message);
+  }finally{
+    document.getElementById('saveStaffBtn').disabled = false;
+  }
+}
+
+async function deleteStaff(staffId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await staffCol().doc(staffId).delete();
+    showToast(t('staffDeleted'));
+    await loadStaff();
+  }catch(e){
+    console.error('deleteStaff error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Coupons (Firestore: restaurants/{rid}/coupons/{couponId}) ---------- */
+function couponsCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('coupons');
+}
+
+async function loadCoupons(){
+  try{
+    const snap = await couponsCol().orderBy('createdAt','desc').get();
+    couponsCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderCouponsTable();
+  }catch(e){
+    console.error('loadCoupons error', e);
+  }
+}
+
+function isCouponExpired(c){
+  if(!c.endDate) return false;
+  const today = new Date().toISOString().slice(0,10);
+  return c.endDate < today;
+}
+
+function renderCouponsTable(){
+  const tbody = document.getElementById('couponsTbody');
+  const table = document.getElementById('couponsTable');
+  const empty = document.getElementById('couponsEmpty');
+  if(couponsCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = couponsCache.map(c=>{
+    const discountLabel = c.type === 'percentage' ? `${c.value}%` : `${Number(c.value||0).toFixed(2)}`;
+    const usageLabel = c.usageLimit ? `${c.usedCount||0} / ${c.usageLimit}` : `${c.usedCount||0} / ${t('unlimited')}`;
+    const expired = isCouponExpired(c);
+    let statusHtml;
+    if(expired){
+      statusHtml = `<span class="expired-badge">${t('expired')}</span>`;
+    } else {
+      const statusClass = c.active !== false ? 'badge-active' : 'badge-inactive';
+      const statusLabel = c.active !== false ? t('active') : t('inactive');
+      statusHtml = `<span class="badge ${statusClass}">${statusLabel}</span>`;
+    }
+    return `<tr>
+      <td><span class="coupon-code">${escapeHtml(c.code||'')}</span></td>
+      <td><span class="coupon-type-badge">${discountLabel}</span></td>
+      <td>${Number(c.minOrderValue||0).toFixed(2)}</td>
+      <td>${usageLabel}</td>
+      <td>${c.endDate || '—'}</td>
+      <td>${statusHtml}</td>
+      <td class="row-actions">
+        <button onclick="openCouponModal('${c.id}')" title="${t('edit')}">✏️</button>
+        <button onclick="deleteCoupon('${c.id}')" title="${t('delete')}">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openCouponModal(couponId){
+  editingCouponId = couponId || null;
+  document.getElementById('couponModalTitle').textContent = couponId ? t('editCoupon') : t('addCoupon');
+  if(couponId){
+    const c = couponsCache.find(x=> x.id === couponId);
+    document.getElementById('couponCodeInput').value = c.code || '';
+    document.getElementById('couponTypeInput').value = c.type || 'percentage';
+    document.getElementById('couponValueInput').value = c.value || '';
+    document.getElementById('couponMinOrderInput').value = c.minOrderValue || '';
+    document.getElementById('couponStartInput').value = c.startDate || '';
+    document.getElementById('couponEndInput').value = c.endDate || '';
+    document.getElementById('couponUsageLimitInput').value = c.usageLimit || '';
+    document.getElementById('couponActiveInput').checked = c.active !== false;
+  } else {
+    document.getElementById('couponCodeInput').value = '';
+    document.getElementById('couponTypeInput').value = 'percentage';
+    document.getElementById('couponValueInput').value = '';
+    document.getElementById('couponMinOrderInput').value = '';
+    document.getElementById('couponStartInput').value = '';
+    document.getElementById('couponEndInput').value = '';
+    document.getElementById('couponUsageLimitInput').value = '';
+    document.getElementById('couponActiveInput').checked = true;
+  }
+  document.getElementById('couponModal').classList.add('active');
+}
+
+function closeCouponModal(){
+  document.getElementById('couponModal').classList.remove('active');
+}
+
+async function saveCoupon(){
+  const code = document.getElementById('couponCodeInput').value.trim().toUpperCase();
+  const type = document.getElementById('couponTypeInput').value;
+  const value = parseFloat(document.getElementById('couponValueInput').value);
+  const minOrderValue = parseFloat(document.getElementById('couponMinOrderInput').value) || 0;
+  const startDate = document.getElementById('couponStartInput').value;
+  const endDate = document.getElementById('couponEndInput').value;
+  const usageLimitRaw = document.getElementById('couponUsageLimitInput').value;
+  const usageLimit = usageLimitRaw ? parseInt(usageLimitRaw) : null;
+  const active = document.getElementById('couponActiveInput').checked;
+
+  if(!code){ showToast(t('codeRequired')); return; }
+  if(isNaN(value) || value <= 0){ showToast(t('fillRequired')); return; }
+
+  const duplicate = couponsCache.find(c=> c.code === code && c.id !== editingCouponId);
+  if(duplicate){ showToast(t('codeExists')); return; }
+
+  try{
+    const saveBtn = document.getElementById('saveCouponBtn');
+    saveBtn.disabled = true;
+    const data = { code, type, value, minOrderValue, startDate, endDate, usageLimit, active };
+    if(editingCouponId){
+      await couponsCol().doc(editingCouponId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await couponsCol().add({ ...data, usedCount:0, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeCouponModal();
+    showToast(t('couponSaved'));
+    await loadCoupons();
+  }catch(e){
+    console.error('saveCoupon error', e);
+    showToast(e.message);
+  }finally{
+    document.getElementById('saveCouponBtn').disabled = false;
+  }
+}
+
+async function deleteCoupon(couponId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await couponsCol().doc(couponId).delete();
+    showToast(t('couponDeleted'));
+    await loadCoupons();
+  }catch(e){
+    console.error('deleteCoupon error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Reports (computed client-side from ordersCache — no extra Firestore reads) ---------- */
+function onReportFilterChange(){
+  renderReports();
+}
+
+function getReportFilteredOrders(){
+  const days = parseInt(document.getElementById('reportPeriodSelect')?.value || '7');
+  const branchId = document.getElementById('reportBranchSelect')?.value || 'all';
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+
+  return ordersCache.filter(o=>{
+    if(!o.createdAt || !o.createdAt.toDate) return false;
+    const created = o.createdAt.toDate();
+    if(created < cutoff) return false;
+    if(branchId !== 'all' && o.branchId !== branchId) return false;
+    return true;
+  });
+}
+
+function renderReports(){
+  const reportsModule = document.getElementById('module-reports');
+  if(!reportsModule) return;
+
+  const filtered = getReportFilteredOrders();
+  const validOrders = filtered.filter(o=> o.status !== 'cancelled');
+  const cancelledOrders = filtered.filter(o=> o.status === 'cancelled');
+
+  const totalRevenue = validOrders.reduce((sum,o)=> sum + (o.total||0), 0);
+  const avgOrder = validOrders.length ? totalRevenue / validOrders.length : 0;
+
+  document.getElementById('reportTotalOrders').textContent = filtered.length;
+  document.getElementById('reportTotalRevenue').textContent = totalRevenue.toFixed(2);
+  document.getElementById('reportAvgOrder').textContent = avgOrder.toFixed(2);
+  document.getElementById('reportCancelledOrders').textContent = cancelledOrders.length;
+
+  renderRevenueChart(validOrders);
+  renderTopProducts(validOrders);
+  renderBranchRevenue(validOrders);
+}
+
+function renderRevenueChart(orders){
+  const wrap = document.getElementById('revenueChart');
+  const empty = document.getElementById('revenueChartEmpty');
+  if(!wrap) return;
+
+  if(orders.length === 0){
+    wrap.style.display='none'; empty.style.display='block';
+    return;
+  }
+
+  const days = parseInt(document.getElementById('reportPeriodSelect').value);
+  const buckets = {};
+  for(let i=days-1; i>=0; i--){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    const key = d.toISOString().slice(0,10);
+    buckets[key] = 0;
+  }
+  orders.forEach(o=>{
+    if(!o.createdAt || !o.createdAt.toDate) return;
+    const key = o.createdAt.toDate().toISOString().slice(0,10);
+    if(key in buckets) buckets[key] += (o.total||0);
+  });
+
+  const maxVal = Math.max(...Object.values(buckets), 1);
+  const entries = Object.entries(buckets);
+  // For long periods (30/90 days), thin out labels to avoid clutter
+  const labelEvery = days > 30 ? 7 : (days > 14 ? 3 : 1);
+
+  wrap.style.display='flex'; empty.style.display='none';
+  wrap.innerHTML = entries.map(([key,val], idx)=>{
+    const heightPct = Math.max(2, Math.round((val/maxVal)*100));
+    const dateObj = new Date(key);
+    const label = dateObj.toLocaleDateString(currentLang==='ar' ? 'ar-EG' : 'en-US', {day:'numeric', month:'short'});
+    const showLabel = idx % labelEvery === 0;
+    return `<div class="chart-bar-col">
+      ${val > 0 ? `<span class="chart-bar-value">${val.toFixed(0)}</span>` : ''}
+      <div class="chart-bar" style="height:${heightPct}%;" title="${label}: ${val.toFixed(2)}"></div>
+      ${showLabel ? `<span class="chart-bar-label">${label}</span>` : '<span class="chart-bar-label">&nbsp;</span>'}
+    </div>`;
+  }).join('');
+}
+
+function renderTopProducts(orders){
+  const wrap = document.getElementById('topProductsList');
+  const empty = document.getElementById('topProductsEmpty');
+  if(!wrap) return;
+
+  const tally = {};
+  orders.forEach(o=>{
+    (o.items||[]).forEach(it=>{
+      tally[it.name] = (tally[it.name]||0) + it.qty;
+    });
+  });
+
+  const sorted = Object.entries(tally).sort((a,b)=> b[1]-a[1]).slice(0,8);
+
+  if(sorted.length === 0){
+    wrap.style.display='none'; empty.style.display='block';
+    return;
+  }
+  wrap.style.display='flex'; empty.style.display='none';
+  const maxCount = sorted[0][1];
+  wrap.innerHTML = sorted.map(([name,count], idx)=>{
+    const pct = Math.round((count/maxCount)*100);
+    return `<div class="top-product-row">
+      <div class="top-product-rank">${idx+1}</div>
+      <div style="flex:1; min-width:0;">
+        <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px;">${escapeHtml(name)}</div>
+        <div class="top-product-bar-wrap"><div class="top-product-bar" style="width:${pct}%;"></div></div>
+      </div>
+      <div class="top-product-count">${count}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderBranchRevenue(orders){
+  const table = document.getElementById('branchRevenueTable');
+  const empty = document.getElementById('branchRevenueEmpty');
+  const tbody = document.getElementById('branchRevenueTbody');
+  if(!table) return;
+
+  if(orders.length === 0 || branchesCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+
+  const byBranch = {};
+  orders.forEach(o=>{
+    if(!byBranch[o.branchId]) byBranch[o.branchId] = { count:0, revenue:0 };
+    byBranch[o.branchId].count += 1;
+    byBranch[o.branchId].revenue += (o.total||0);
+  });
+
+  const rows = branchesCache
+    .filter(b=> byBranch[b.id])
+    .map(b=> ({ name:b.name, ...byBranch[b.id] }))
+    .sort((a,b)=> b.revenue - a.revenue);
+
+  if(rows.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = rows.map(r=> `<tr>
+    <td>${escapeHtml(r.name)}</td>
+    <td>${r.count}</td>
+    <td>${r.revenue.toFixed(2)}</td>
+  </tr>`).join('');
+}
+
+/* ---------- Notifications (Firestore: restaurants/{rid}/notifications/{notificationId}) ---------- */
+function notificationsCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('notifications');
+}
+
+async function loadNotifications(){
+  try{
+    const snap = await notificationsCol().orderBy('createdAt','desc').limit(50).get();
+    notificationsCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderNotificationsList();
+  }catch(e){
+    console.error('loadNotifications error', e);
+  }
+}
+
+function relativeTime(date){
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.floor(diffMs/60000);
+  if(mins < 1) return t('justNow');
+  if(mins < 60) return `${mins} ${t('minutesAgo')}`;
+  const hours = Math.floor(mins/60);
+  if(hours < 24) return `${hours} ${t('hoursAgo')}`;
+  const days = Math.floor(hours/24);
+  return `${days} ${t('daysAgo')}`;
+}
+
+function renderNotificationsList(){
+  const list = document.getElementById('notifList');
+  const empty = document.getElementById('notifEmpty');
+  if(!list) return;
+
+  if(notificationsCache.length === 0){
+    list.style.display='none'; empty.style.display='block';
+    return;
+  }
+  list.style.display='flex'; empty.style.display='none';
+
+  list.innerHTML = notificationsCache.map(n=>{
+    let targetLabel = t('targetAllCustomers');
+    let icon = '📢';
+    if(n.targetType === 'branch'){
+      const branch = branchesCache.find(b=> b.id === n.targetId);
+      targetLabel = branch ? branch.name : t('targetBranchCustomers');
+      icon = '🏢';
+    } else if(n.targetType === 'staff'){
+      targetLabel = t('targetStaff');
+      icon = '👥';
+    }
+    const timeLabel = n.createdAt && n.createdAt.toDate ? relativeTime(n.createdAt.toDate()) : '';
+    return `<div class="notif-item">
+      <div class="notif-icon">${icon}</div>
+      <div class="notif-body">
+        <div class="notif-title">${escapeHtml(n.title||'')}</div>
+        <div class="notif-text">${escapeHtml(n.body||'')}</div>
+        <div class="notif-meta">
+          <span class="target-badge">${escapeHtml(targetLabel)}</span>
+          <span>${timeLabel}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function onNotifTargetChange(){
+  const target = document.getElementById('notifTargetInput').value;
+  document.getElementById('notifBranchFieldWrap').style.display = target === 'branch' ? 'block' : 'none';
+}
+
+function openNotificationModal(){
+  document.getElementById('notifTargetInput').value = 'all';
+  document.getElementById('notifBranchFieldWrap').style.display = 'none';
+  document.getElementById('notifTitleInput').value = '';
+  document.getElementById('notifBodyInput').value = '';
+
+  const branchSel = document.getElementById('notifBranchInput');
+  branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+
+  document.getElementById('notificationModal').classList.add('active');
+}
+
+function closeNotificationModal(){
+  document.getElementById('notificationModal').classList.remove('active');
+}
+
+async function sendNotification(){
+  const targetType = document.getElementById('notifTargetInput').value;
+  const targetId = targetType === 'branch' ? document.getElementById('notifBranchInput').value : null;
+  const title = document.getElementById('notifTitleInput').value.trim();
+  const body = document.getElementById('notifBodyInput').value.trim();
+
+  if(!title || !body){
+    showToast(t('notifFillRequired'));
+    return;
+  }
+
+  const btn = document.getElementById('sendNotifBtn');
+  btn.disabled = true;
+  try{
+    await notificationsCol().add({
+      targetType, targetId, title, body, read:false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeNotificationModal();
+    showToast(t('notifSent'));
+    await loadNotifications();
+  }catch(e){
+    console.error('sendNotification error', e);
+    showToast(e.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+/* ---------- Ingredients (Firestore: restaurants/{rid}/ingredients/{ingredientId}) ---------- */
+function ingredientsCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('ingredients');
+}
+
+async function loadIngredients(){
+  try{
+    const snap = await ingredientsCol().orderBy('createdAt','desc').get();
+    ingredientsCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderIngredientsTable();
+    renderLowStockBanner();
+    renderStockAvailabilityReport();
+    populateBomIngredientSelect();
+  }catch(e){
+    console.error('loadIngredients error', e);
+  }
+}
+
+function isLowStock(ing){
+  return (ing.currentStock||0) <= (ing.minStock||0);
+}
+
+function renderIngredientsTable(){
+  const tbody = document.getElementById('ingredientsTbody');
+  const table = document.getElementById('ingredientsTable');
+  const empty = document.getElementById('ingredientsEmpty');
+  if(!table) return;
+  if(ingredientsCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = ingredientsCache.map(ing=>{
+    const low = isLowStock(ing);
+    const stockBadge = `<span class="stock-badge ${low?'low':'ok'}">${(ing.currentStock||0)} ${ing.unit} ${low?'· '+t('lowStock'):''}</span>`;
+    return `<tr>
+      <td>${escapeHtml(ing.name||'')}</td>
+      <td>${escapeHtml(ing.unit||'')}</td>
+      <td>${Number(ing.costPerUnit||0).toFixed(2)}</td>
+      <td>${stockBadge}</td>
+      <td>${ing.minStock||0} ${ing.unit}</td>
+      <td><span class="storage-badge">${t('storage'+capitalize(ing.storageLocation||'warehouse'))}</span></td>
+      <td class="row-actions">
+        <button onclick="openIngredientModal('${ing.id}')" title="${t('edit')}">✏️</button>
+        <button onclick="deleteIngredient('${ing.id}')" title="${t('delete')}">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function capitalize(str){ return str.charAt(0).toUpperCase() + str.slice(1); }
+
+// Stock Availability Report — one row per product, showing the max units currently
+// producible from ingredient stock, and which ingredient is the limiting factor.
+function renderStockAvailabilityReport(){
+  const table = document.getElementById('stockAvailabilityTable');
+  const empty = document.getElementById('stockAvailabilityEmpty');
+  const tbody = document.getElementById('stockAvailabilityTbody');
+  if(!table) return;
+
+  const productsWithBom = productsCache.filter(p=> p.bom && Object.keys(p.bom).length > 0);
+  if(productsWithBom.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = productsWithBom.map(p=>{
+    const name = currentLang==='ar' ? (p.name_ar||p.name_en) : (p.name_en||p.name_ar);
+    const { max, bottleneck } = computeMaxProducible(p);
+    const maxBadge = `<span class="stock-badge ${max<=0?'low':'ok'}">${max}</span>`;
+    return `<tr>
+      <td>${escapeHtml(name)}</td>
+      <td>${maxBadge}</td>
+      <td>${bottleneck ? escapeHtml(bottleneck) : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderLowStockBanner(){
+  const banner = document.getElementById('lowStockBanner');
+  if(!banner) return;
+  const lowItems = ingredientsCache.filter(isLowStock);
+  if(lowItems.length === 0){
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+  const label = lowItems.length === 1 ? t('lowStockWarning') : t('lowStockWarningPlural');
+  document.getElementById('lowStockText').textContent = `${lowItems.length} ${label}`;
+}
+
+function openIngredientModal(ingredientId){
+  editingIngredientId = ingredientId || null;
+  document.getElementById('ingredientModalTitle').textContent = ingredientId ? t('editIngredient') : t('addIngredient');
+  if(ingredientId){
+    const ing = ingredientsCache.find(x=> x.id === ingredientId);
+    document.getElementById('ingredientNameInput').value = ing.name || '';
+    document.getElementById('ingredientUnitInput').value = ing.unit || 'kg';
+    document.getElementById('ingredientCostInput').value = ing.costPerUnit || '';
+    document.getElementById('ingredientStockInput').value = ing.currentStock || '';
+    document.getElementById('ingredientMinStockInput').value = ing.minStock || '';
+    document.getElementById('ingredientStorageInput').value = ing.storageLocation || 'warehouse';
+  } else {
+    document.getElementById('ingredientNameInput').value = '';
+    document.getElementById('ingredientUnitInput').value = 'kg';
+    document.getElementById('ingredientCostInput').value = '';
+    document.getElementById('ingredientStockInput').value = '';
+    document.getElementById('ingredientMinStockInput').value = '';
+    document.getElementById('ingredientStorageInput').value = 'warehouse';
+  }
+  document.getElementById('ingredientModal').classList.add('active');
+}
+
+function closeIngredientModal(){
+  document.getElementById('ingredientModal').classList.remove('active');
+}
+
+async function saveIngredient(){
+  const name = document.getElementById('ingredientNameInput').value.trim();
+  const unit = document.getElementById('ingredientUnitInput').value;
+  const costPerUnit = parseFloat(document.getElementById('ingredientCostInput').value) || 0;
+  // Stock quantities can never be negative, regardless of what was typed — the min="0"
+  // attribute on the inputs helps on desktop, but this clamp is the real guarantee.
+  const rawStock = parseFloat(document.getElementById('ingredientStockInput').value) || 0;
+  const rawMinStock = parseFloat(document.getElementById('ingredientMinStockInput').value) || 0;
+  const currentStock = Math.max(0, rawStock);
+  const minStock = Math.max(0, rawMinStock);
+  if(rawStock < 0 || rawMinStock < 0){
+    showToast(t('stockCannotBeNegative'));
+  }
+  const storageLocation = document.getElementById('ingredientStorageInput').value;
+
+  if(!name){ showToast(t('fillRequired')); return; }
+
+  const saveBtn = document.getElementById('saveIngredientBtn');
+  saveBtn.disabled = true;
+  try{
+    const data = { name, unit, costPerUnit, currentStock, minStock, storageLocation };
+    if(editingIngredientId){
+      await ingredientsCol().doc(editingIngredientId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await ingredientsCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeIngredientModal();
+    showToast(t('ingredientSaved'));
+    await loadIngredients();
+    renderProductsGrid(); // costs may depend on this ingredient
+    renderStockAvailabilityReport();
+  }catch(e){
+    console.error('saveIngredient error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteIngredient(ingredientId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await ingredientsCol().doc(ingredientId).delete();
+    showToast(t('ingredientDeleted'));
+    await loadIngredients();
+  }catch(e){
+    console.error('deleteIngredient error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- BOM helpers (used inside Product modal) ---------- */
+function populateBomIngredientSelect(){
+  const sel = document.getElementById('bomIngredientSelect');
+  if(!sel) return;
+  sel.innerHTML = ingredientsCache.map(ing=> `<option value="${ing.id}">${escapeHtml(ing.name)} (${ing.unit})</option>`).join('');
+}
+
+function renderBomLines(){
+  const wrap = document.getElementById('bomLinesWrap');
+  const emptyHint = document.getElementById('bomEmptyHint');
+  const entries = Object.entries(currentProductBom);
+  if(entries.length === 0){
+    wrap.innerHTML = '';
+    wrap.appendChild(emptyHint);
+    emptyHint.style.display = 'block';
+    updateProductCostSummary();
+    return;
+  }
+  wrap.innerHTML = entries.map(([ingId, qty])=>{
+    const ing = ingredientsCache.find(x=> x.id === ingId);
+    if(!ing) return '';
+    const lineCost = (ing.costPerUnit||0) * qty;
+    return `<div class="bom-line">
+      <span class="bl-name">${escapeHtml(ing.name)}</span>
+      <span class="bl-qty">${qty} ${ing.unit}</span>
+      <span class="bl-cost">${lineCost.toFixed(2)}</span>
+      <button class="bl-remove" onclick="removeBomLine('${ingId}')">✕</button>
+    </div>`;
+  }).join('');
+  updateProductCostSummary();
+}
+
+function addBomLine(){
+  const ingId = document.getElementById('bomIngredientSelect').value;
+  const qty = parseFloat(document.getElementById('bomQtyInput').value);
+  if(!ingId || !qty || qty <= 0) return;
+  currentProductBom[ingId] = (currentProductBom[ingId]||0) + qty;
+  document.getElementById('bomQtyInput').value = '';
+  renderBomLines();
+}
+
+function removeBomLine(ingId){
+  delete currentProductBom[ingId];
+  renderBomLines();
+}
+
+function computeBomCost(){
+  let cost = 0;
+  Object.entries(currentProductBom).forEach(([ingId, qty])=>{
+    const ing = ingredientsCache.find(x=> x.id === ingId);
+    if(ing) cost += (ing.costPerUnit||0) * qty;
+  });
+  return cost;
+}
+
+function updateProductCostSummary(){
+  const ingredientsCost = computeBomCost();
+  const laborCost = parseFloat(document.getElementById('productLaborCostInput')?.value) || 0;
+  const otherCosts = parseFloat(document.getElementById('productOtherCostsInput')?.value) || 0;
+  const totalCost = ingredientsCost + laborCost + otherCosts;
+  const price = parseFloat(document.getElementById('productPriceInput')?.value) || 0;
+  const profit = price - totalCost;
+  const margin = price > 0 ? (profit/price)*100 : 0;
+
+  document.getElementById('csIngredientsCost').textContent = ingredientsCost.toFixed(2);
+  document.getElementById('csLaborCost').textContent = laborCost.toFixed(2);
+  document.getElementById('csOtherCosts').textContent = otherCosts.toFixed(2);
+  document.getElementById('csTotalCost').textContent = totalCost.toFixed(2);
+  const profitLine = document.getElementById('csProfitLine');
+  const profitEl = document.getElementById('csProfit');
+  profitEl.textContent = profit.toFixed(2);
+  profitLine.className = 'cs-line ' + (profit >= 0 ? 'profit' : 'loss');
+  document.getElementById('csMargin').textContent = margin.toFixed(0) + '%';
+}
+
+/* ---------- Suppliers (Firestore: restaurants/{rid}/suppliers/{supplierId}) ---------- */
+function suppliersCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('suppliers');
+}
+
+async function loadSuppliers(){
+  try{
+    const snap = await suppliersCol().orderBy('createdAt','desc').get();
+    suppliersCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderSuppliersTable();
+  }catch(e){
+    console.error('loadSuppliers error', e);
+  }
+}
+
+function renderSuppliersTable(){
+  const tbody = document.getElementById('suppliersTbody');
+  const table = document.getElementById('suppliersTable');
+  const empty = document.getElementById('suppliersEmpty');
+  if(!table) return;
+  if(suppliersCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = suppliersCache.map(s=> `<tr>
+    <td>${escapeHtml(s.name||'')}</td>
+    <td>${escapeHtml(s.contactPerson||'')}</td>
+    <td>${escapeHtml(s.phone||'')}</td>
+    <td class="row-actions">
+      <button onclick="openSupplierModal('${s.id}')" title="${t('edit')}">✏️</button>
+      <button onclick="deleteSupplier('${s.id}')" title="${t('delete')}">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openSupplierModal(supplierId){
+  editingSupplierId = supplierId || null;
+  document.getElementById('supplierModalTitle').textContent = supplierId ? t('editSupplier') : t('addSupplier');
+  if(supplierId){
+    const s = suppliersCache.find(x=> x.id === supplierId);
+    document.getElementById('supplierNameInput').value = s.name || '';
+    document.getElementById('supplierContactInput').value = s.contactPerson || '';
+    document.getElementById('supplierPhoneInput').value = s.phone || '';
+    document.getElementById('supplierNotesInput').value = s.notes || '';
+  } else {
+    document.getElementById('supplierNameInput').value = '';
+    document.getElementById('supplierContactInput').value = '';
+    document.getElementById('supplierPhoneInput').value = '';
+    document.getElementById('supplierNotesInput').value = '';
+  }
+  document.getElementById('supplierModal').classList.add('active');
+}
+
+function closeSupplierModal(){
+  document.getElementById('supplierModal').classList.remove('active');
+}
+
+async function saveSupplier(){
+  const name = document.getElementById('supplierNameInput').value.trim();
+  const contactPerson = document.getElementById('supplierContactInput').value.trim();
+  const phone = document.getElementById('supplierPhoneInput').value.trim();
+  const notes = document.getElementById('supplierNotesInput').value.trim();
+
+  if(!name){ showToast(t('fillRequired')); return; }
+
+  const saveBtn = document.getElementById('saveSupplierBtn');
+  saveBtn.disabled = true;
+  try{
+    const data = { name, contactPerson, phone, notes };
+    if(editingSupplierId){
+      await suppliersCol().doc(editingSupplierId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await suppliersCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeSupplierModal();
+    showToast(t('supplierSaved'));
+    await loadSuppliers();
+  }catch(e){
+    console.error('saveSupplier error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteSupplier(supplierId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await suppliersCol().doc(supplierId).delete();
+    showToast(t('supplierDeleted'));
+    await loadSuppliers();
+  }catch(e){
+    console.error('deleteSupplier error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Purchase Orders (Firestore: restaurants/{rid}/purchaseOrders/{poId}) ---------- */
+function poCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('purchaseOrders');
+}
+
+async function loadPurchaseOrders(){
+  try{
+    const snap = await poCol().orderBy('createdAt','desc').get();
+    purchaseOrdersCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderPOTable();
+  }catch(e){
+    console.error('loadPurchaseOrders error', e);
+  }
+}
+
+function renderPOTable(){
+  const tbody = document.getElementById('poTbody');
+  const table = document.getElementById('poTable');
+  const empty = document.getElementById('poEmpty');
+  if(!table) return;
+  if(purchaseOrdersCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = purchaseOrdersCache.map(po=>{
+    const supplier = suppliersCache.find(s=> s.id === po.supplierId);
+    const status = po.status || 'draft';
+    let actionsHtml = `<button onclick="deletePO('${po.id}')" title="${t('delete')}">🗑️</button>`;
+    if(status === 'draft'){
+      actionsHtml = `<button onclick="updatePOStatus('${po.id}','sent')" title="${t('markSent')}">📤</button>` + actionsHtml;
+    } else if(status === 'sent'){
+      actionsHtml = `<button onclick="updatePOStatus('${po.id}','received')" title="${t('markReceived')}">✅</button>` + actionsHtml;
+    }
+    return `<tr>
+      <td>${escapeHtml(supplier ? supplier.name : '—')}</td>
+      <td>${(po.items||[]).length}</td>
+      <td>${Number(po.total||0).toFixed(2)}</td>
+      <td><span class="po-status-badge po-status-${status}">${t('poStatus_'+status)}</span></td>
+      <td class="row-actions">${actionsHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openPOModal(prefillShortage){
+  if(suppliersCache.length === 0){ showToast(t('noSupplierFirst')); return; }
+  if(ingredientsCache.length === 0){ showToast(t('noIngredientFirst')); return; }
+
+  poItemsSelection = {};
+  if(prefillShortage){
+    ingredientsCache.filter(isLowStock).forEach(ing=>{
+      const needed = Math.max((ing.minStock||0) - (ing.currentStock||0), ing.minStock||1);
+      poItemsSelection[ing.id] = needed;
+    });
+  }
+
+  const supplierSel = document.getElementById('poSupplierInput');
+  supplierSel.innerHTML = suppliersCache.map(s=> `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+
+  renderPOItemsPicker();
+  updatePOTotalDisplay();
+  document.getElementById('poModal').classList.add('active');
+}
+
+function closePOModal(){
+  document.getElementById('poModal').classList.remove('active');
+}
+
+function renderPOItemsPicker(){
+  const wrap = document.getElementById('poItemsPicker');
+  wrap.innerHTML = ingredientsCache.map(ing=>{
+    const qty = poItemsSelection[ing.id] || 0;
+    const lowTag = isLowStock(ing) ? ` <span class="stock-badge low">${t('lowStock')}</span>` : '';
+    return `<div class="picker-row">
+      <span class="p-name">${escapeHtml(ing.name)}${lowTag}</span>
+      <span class="p-price">${Number(ing.costPerUnit||0).toFixed(2)}</span>
+      <div class="qty-control">
+        <button onclick="changePOItemQty('${ing.id}', -1)">−</button>
+        <span id="po-qty-${ing.id}">${qty}</span>
+        <button onclick="changePOItemQty('${ing.id}', 1)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function changePOItemQty(ingId, delta){
+  const current = poItemsSelection[ingId] || 0;
+  const next = Math.max(0, current + delta);
+  if(next === 0) delete poItemsSelection[ingId];
+  else poItemsSelection[ingId] = next;
+  document.getElementById('po-qty-'+ingId).textContent = next;
+  updatePOTotalDisplay();
+}
+
+function computePOTotal(){
+  let total = 0;
+  Object.entries(poItemsSelection).forEach(([ingId, qty])=>{
+    const ing = ingredientsCache.find(x=> x.id === ingId);
+    if(ing) total += (ing.costPerUnit||0) * qty;
+  });
+  return total;
+}
+
+function updatePOTotalDisplay(){
+  document.getElementById('poTotalDisplay').textContent = computePOTotal().toFixed(2);
+}
+
+async function savePO(){
+  const supplierId = document.getElementById('poSupplierInput').value;
+  const entries = Object.entries(poItemsSelection);
+  if(entries.length === 0){
+    showToast(t('selectAtLeastOne'));
+    return;
+  }
+  const items = entries.map(([ingId, qty])=>{
+    const ing = ingredientsCache.find(x=> x.id === ingId);
+    return { ingredientId: ingId, name: ing.name, unit: ing.unit, qty, unitCost: ing.costPerUnit||0 };
+  });
+  const total = computePOTotal();
+
+  const btn = document.getElementById('savePOBtn');
+  btn.disabled = true;
+  try{
+    await poCol().add({
+      supplierId, items, total, status:'draft',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closePOModal();
+    showToast(t('poSaved'));
+    await loadPurchaseOrders();
+  }catch(e){
+    console.error('savePO error', e);
+    showToast(e.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function updatePOStatus(poId, newStatus){
+  try{
+    const po = purchaseOrdersCache.find(x=> x.id === poId);
+    await poCol().doc(poId).update({ status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+
+    // Receiving a PO restocks the ingredients automatically
+    if(newStatus === 'received' && po){
+      const batch = db.batch();
+      po.items.forEach(item=>{
+        const ing = ingredientsCache.find(x=> x.id === item.ingredientId);
+        if(ing){
+          const newStock = (ing.currentStock||0) + item.qty;
+          batch.update(ingredientsCol().doc(item.ingredientId), { currentStock: newStock });
+        }
+      });
+      await batch.commit();
+      await loadIngredients();
+      showToast(t('poReceivedStockUpdated'));
+    }
+    await loadPurchaseOrders();
+  }catch(e){
+    console.error('updatePOStatus error', e);
+    showToast(e.message);
+  }
+}
+
+async function deletePO(poId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await poCol().doc(poId).delete();
+    showToast(t('poDeleted'));
+    await loadPurchaseOrders();
+  }catch(e){
+    console.error('deletePO error', e);
+    showToast(e.message);
+  }
+}
+
+/* init */
+applyTranslations();
+</script>
+
+</body>
+</html>
