@@ -101,6 +101,8 @@
   .product-body h4{font-size:13px; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .product-body .price{color:var(--primary-dark); font-weight:700; font-size:14px;}
   .product-body .cat-label{font-size:11px; color:var(--muted); margin-top:2px;}
+  .calories-label{font-size:11px; color:#c2410c; margin-top:2px;}
+  .product-tile-calories{font-size:10px; color:#c2410c; margin-top:1px;}
   .product-actions{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
   .product-actions button{background:none; border:none; cursor:pointer; font-size:13px;}
   .unavailable-badge{position:absolute; top:8px; inset-inline-start:8px; background:rgba(220,38,38,.9); color:#fff; font-size:10px; padding:2px 8px; border-radius:10px;}
@@ -157,6 +159,7 @@
   .product-tile-maxlabel{font-size:10px; margin-top:2px;}
   .product-tile-qtybadge{position:absolute; top:6px; inset-inline-end:6px; background:var(--primary); color:#fff; font-size:12px; font-weight:700; min-width:22px; height:22px; border-radius:11px; display:flex; align-items:center; justify-content:center; padding:0 6px; box-shadow:0 1px 4px rgba(0,0,0,.25);}
   .product-tile-minus{position:absolute; bottom:6px; inset-inline-start:6px; width:26px; height:26px; border-radius:8px; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; z-index:2;}
+  .delivery-platform-badge{display:inline-block; background:#eef2ff; color:#4338ca; font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px; width:fit-content;}
   .picker-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px; gap:10px;}
   .picker-row:last-child{border-bottom:none;}
   .picker-row .p-name{flex:1;}
@@ -311,6 +314,9 @@
     <div class="nav-item" data-module="inventory" onclick="showModule('inventory')">
       <span class="nav-icon">📦</span><span data-i18n="nav_inventory">المخزون والتكاليف</span>
     </div>
+    <div class="nav-item" data-module="delivery" onclick="showModule('delivery')">
+      <span class="nav-icon">🛵</span><span data-i18n="nav_delivery">الدليفري</span>
+    </div>
     <div class="nav-item" data-module="settings" onclick="showModule('settings')">
       <span class="nav-icon">⚙️</span><span data-i18n="nav_settings">الإعدادات والبيانات</span>
     </div>
@@ -404,7 +410,12 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="productList">قائمة المنتجات</h3>
-            <button class="btn" onclick="openProductModal()" data-i18n="addProduct">+ إضافة منتج</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-outline" onclick="downloadProductImportTemplate()" data-i18n="downloadTemplate">تنزيل نموذج Excel</button>
+              <input type="file" id="productImportFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleProductImportFile(event)">
+              <button class="btn btn-outline" onclick="document.getElementById('productImportFileInput').click()" data-i18n="importFromExcel">📥 استيراد من Excel</button>
+              <button class="btn" onclick="openProductModal()" data-i18n="addProduct">+ إضافة منتج</button>
+            </div>
           </div>
           <div class="chip-list" id="categoryFilterChips"></div>
           <div id="productsGridWrap">
@@ -422,7 +433,12 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="categoryList">قائمة التصنيفات</h3>
-            <button class="btn" onclick="openCategoryModal()" data-i18n="addCategory">+ إضافة تصنيف</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-outline" onclick="downloadCategoryImportTemplate()" data-i18n="downloadTemplate">تنزيل نموذج Excel</button>
+              <input type="file" id="categoryImportFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleCategoryImportFile(event)">
+              <button class="btn btn-outline" onclick="document.getElementById('categoryImportFileInput').click()" data-i18n="importFromExcel">📥 استيراد من Excel</button>
+              <button class="btn" onclick="openCategoryModal()" data-i18n="addCategory">+ إضافة تصنيف</button>
+            </div>
           </div>
           <div id="categoriesTableWrap">
             <div class="empty-state" id="categoriesEmpty">
@@ -802,6 +818,67 @@
     </div>
 
     <!-- Settings & Data Module: backup, restore, and wipe data -->
+    <!-- Delivery Module: zones and drivers -->
+    <div id="module-delivery" class="module-content" style="display:none;">
+      <div class="tabs">
+        <button class="tab-btn active" data-deltab="zones" onclick="switchDeliveryTab('zones')" data-i18n="tabDeliveryZones">مناطق التوصيل</button>
+        <button class="tab-btn" data-deltab="drivers" onclick="switchDeliveryTab('drivers')" data-i18n="tabDrivers">السائقين</button>
+      </div>
+
+      <!-- Delivery Zones Tab -->
+      <div class="tab-pane active" id="delTab-zones">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="zoneList">مناطق التوصيل</h3>
+            <button class="btn" onclick="openDeliveryZoneModal()" data-i18n="addZone">+ إضافة منطقة</button>
+          </div>
+          <div id="zonesTableWrap">
+            <div class="empty-state" id="zonesEmpty">
+              <div class="icon">🗺️</div>
+              <p data-i18n="noZonesYet">لا توجد مناطق توصيل بعد</p>
+            </div>
+            <table id="zonesTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colName">الاسم</th>
+                  <th data-i18n="deliveryFee">رسوم التوصيل</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="zonesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drivers Tab -->
+      <div class="tab-pane" id="delTab-drivers">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="driverList">قائمة السائقين</h3>
+            <button class="btn" onclick="openDriverModal()" data-i18n="addDriver">+ إضافة سائق</button>
+          </div>
+          <div id="driversTableWrap">
+            <div class="empty-state" id="driversEmpty">
+              <div class="icon">🛵</div>
+              <p data-i18n="noDriversYet">لا يوجد سائقين بعد</p>
+            </div>
+            <table id="driversTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th data-i18n="colName">الاسم</th>
+                  <th data-i18n="colPhone">الهاتف</th>
+                  <th data-i18n="colStatus">الحالة</th>
+                  <th data-i18n="colActions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="driversTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="module-settings" class="module-content" style="display:none;">
       <div class="panel">
         <div class="panel-head">
@@ -904,9 +981,15 @@
       <label data-i18n="colPrice">السعر</label>
       <input type="number" id="productPriceInput" placeholder="120" min="0" step="0.01" oninput="updateProductCostSummary()">
     </div>
-    <div class="field">
-      <label data-i18n="colCategory">التصنيف</label>
-      <select id="productCategoryInput"></select>
+    <div class="field-row">
+      <div class="field">
+        <label data-i18n="colCategory">التصنيف</label>
+        <select id="productCategoryInput"></select>
+      </div>
+      <div class="field">
+        <label data-i18n="calories">السعرات الحرارية (اختياري)</label>
+        <input type="number" id="productCaloriesInput" placeholder="450" min="0" step="1">
+      </div>
     </div>
 
     <div class="field">
@@ -965,11 +1048,46 @@
     </div>
     <div class="field">
       <label data-i18n="orderType">نوع الطلب</label>
-      <select id="orderTypeInput">
+      <select id="orderTypeInput" onchange="toggleDeliveryFields()">
         <option value="dine-in" data-i18n="dineIn">صالة</option>
         <option value="takeaway" data-i18n="takeaway">تيك أواي</option>
         <option value="delivery" data-i18n="delivery">دليفري</option>
       </select>
+    </div>
+    <!-- Delivery-only fields — hidden for dine-in/takeaway orders -->
+    <div id="deliveryFieldsSection" style="display:none;">
+      <div class="field">
+        <label data-i18n="deliveryAddress">عنوان التوصيل</label>
+        <input type="text" id="orderDeliveryAddressInput" placeholder="العنوان بالتفصيل">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label data-i18n="deliveryZone">منطقة التوصيل</label>
+          <select id="orderDeliveryZoneInput" onchange="applyDeliveryZoneFee()"></select>
+        </div>
+        <div class="field">
+          <label data-i18n="deliveryFee">رسوم التوصيل</label>
+          <input type="number" id="orderDeliveryFeeInput" min="0" step="0.01" oninput="updateOrderTotalDisplay()">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label data-i18n="platformSource">مصدر الطلب</label>
+          <select id="orderPlatformSourceInput">
+            <option value="internal" data-i18n="platform_internal">توصيل داخلي</option>
+            <option value="talabat" data-i18n="platform_talabat">طلبات</option>
+            <option value="ubereats" data-i18n="platform_ubereats">أوبر إيتس</option>
+            <option value="instashop" data-i18n="platform_instashop">إنستاشوب</option>
+            <option value="other" data-i18n="platform_other">أخرى</option>
+          </select>
+        </div>
+        <div class="field">
+          <label data-i18n="assignDriverOptional">السائق (اختياري)</label>
+          <select id="orderDriverInput">
+            <option value="" data-i18n="unassigned">— بدون تعيين —</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div class="field">
       <label data-i18n="selectItems">اختر المنتجات</label>
@@ -995,6 +1113,10 @@
     <div class="order-summary-line" id="orderDiscountLine" style="display:none; color:var(--ok);">
       <span data-i18n="discount">الخصم</span>
       <span id="orderDiscountDisplay">0.00</span>
+    </div>
+    <div class="order-summary-line" id="orderDeliveryFeeLine" style="display:none;">
+      <span data-i18n="deliveryFee">رسوم التوصيل</span>
+      <span id="orderDeliveryFeeDisplay">0.00</span>
     </div>
     <div class="order-summary-line total">
       <span data-i18n="total">الإجمالي</span>
@@ -1252,6 +1374,122 @@
   </div>
 </div>
 
+<!-- Product Import Preview Modal -->
+<div class="modal-overlay" id="productImportModal">
+  <div class="modal" style="max-width:520px;">
+    <h3 data-i18n="importPreviewTitle">معاينة الاستيراد</h3>
+    <p id="importSummaryText" style="font-size:13px; color:var(--muted); margin-bottom:12px;"></p>
+    <div id="importErrorsWrap" style="display:none; margin-bottom:12px;">
+      <p style="font-size:13px; color:var(--danger); font-weight:600;" data-i18n="importErrorsFound">تم تجاهل الصفوف التالية بسبب أخطاء:</p>
+      <div id="importErrorsList" style="max-height:140px; overflow-y:auto; font-size:12px; color:var(--danger); background:#fef2f2; border-radius:8px; padding:8px;"></div>
+    </div>
+    <div id="importPreviewWrap" style="max-height:240px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+      <table style="width:100%; font-size:12px;">
+        <thead>
+          <tr>
+            <th style="padding:6px; text-align:right;" data-i18n="colName">الاسم</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colPrice">السعر</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colCategory">التصنيف</th>
+          </tr>
+        </thead>
+        <tbody id="importPreviewTbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeProductImportModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="commitProductImport()" id="confirmImportBtn" data-i18n="confirmImport">تأكيد الاستيراد</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category Import Preview Modal -->
+<div class="modal-overlay" id="categoryImportModal">
+  <div class="modal" style="max-width:460px;">
+    <h3 data-i18n="importPreviewTitle">معاينة الاستيراد</h3>
+    <p id="catImportSummaryText" style="font-size:13px; color:var(--muted); margin-bottom:12px;"></p>
+    <div id="catImportErrorsWrap" style="display:none; margin-bottom:12px;">
+      <p style="font-size:13px; color:var(--danger); font-weight:600;" data-i18n="importErrorsFound">تم تجاهل الصفوف التالية بسبب أخطاء:</p>
+      <div id="catImportErrorsList" style="max-height:140px; overflow-y:auto; font-size:12px; color:var(--danger); background:#fef2f2; border-radius:8px; padding:8px;"></div>
+    </div>
+    <div id="catImportPreviewWrap" style="max-height:240px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+      <table style="width:100%; font-size:12px;">
+        <thead>
+          <tr>
+            <th style="padding:6px; text-align:right;" data-i18n="colNameAr">الاسم (عربي)</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colNameEn">الاسم (إنجليزي)</th>
+          </tr>
+        </thead>
+        <tbody id="catImportPreviewTbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeCategoryImportModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="commitCategoryImport()" id="confirmCatImportBtn" data-i18n="confirmImport">تأكيد الاستيراد</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delivery Zone Modal -->
+<div class="modal-overlay" id="deliveryZoneModal">
+  <div class="modal">
+    <h3 id="deliveryZoneModalTitle" data-i18n="addZone">إضافة منطقة</h3>
+    <div class="field">
+      <label data-i18n="colName">الاسم</label>
+      <input type="text" id="zoneNameInput" placeholder="مثال: مدينة نصر">
+    </div>
+    <div class="field">
+      <label data-i18n="deliveryFee">رسوم التوصيل</label>
+      <input type="number" id="zoneFeeInput" placeholder="30" min="0" step="0.01">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeDeliveryZoneModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveDeliveryZone()" id="saveZoneBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Driver Modal -->
+<div class="modal-overlay" id="driverModal">
+  <div class="modal">
+    <h3 id="driverModalTitle" data-i18n="addDriver">إضافة سائق</h3>
+    <div class="field">
+      <label data-i18n="colName">الاسم</label>
+      <input type="text" id="driverNameInput" placeholder="اسم السائق">
+    </div>
+    <div class="field">
+      <label data-i18n="colPhone">الهاتف</label>
+      <input type="text" id="driverPhoneInput" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label class="checkbox-label">
+        <input type="checkbox" id="driverActiveInput" checked>
+        <span data-i18n="driverActive">نشط (متاح للتعيين)</span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeDriverModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveDriver()" id="saveDriverBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign/Change Driver Modal (quick action from an order card) -->
+<div class="modal-overlay" id="assignDriverModal">
+  <div class="modal">
+    <h3 data-i18n="assignDriverTitle">تعيين سائق</h3>
+    <div class="field">
+      <label data-i18n="driverSelect">السائق</label>
+      <select id="assignDriverSelect">
+        <option value="" data-i18n="unassigned">— بدون تعيين —</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeAssignDriverModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="saveAssignedDriver()" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
 <!-- Purchase Order Modal -->
 <div class="modal-overlay" id="poModal">
   <div class="modal" style="max-width:460px;">
@@ -1277,6 +1515,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase SDK scripts moved here (right before the app script, instead of <head>) so the
      browser can parse and paint the login screen immediately instead of blocking page render
      while these download — this is what caused the app to look "frozen"/blank on slower
@@ -1324,7 +1563,11 @@ let ordersCache = [];
 let ordersUnsubscribe = null;
 let orderItemsSelection = {}; // { productId: qty }
 let appliedCoupon = null;
-const ORDER_STATUSES = ['pending','preparing','ready','delivered','cancelled'];
+let deliveryZonesCache = [];
+let driversCache = [];
+let editingDeliveryZoneId = null;
+let editingDriverId = null;
+const ORDER_STATUSES = ['pending','preparing','ready','out_for_delivery','delivered','cancelled'];
 
 let staffCache = [];
 let editingStaffId = null;
@@ -1390,6 +1633,7 @@ const translations = {
     noBranchFirst:"أضف فرع واحد على الأقل أولاً", noProductFirst:"أضف منتج واحد على الأقل أولاً",
     selectAtLeastOne:"اختر منتج واحد على الأقل",
     status_pending:"جديد", status_preparing:"قيد التحضير", status_ready:"جاهز",
+    status_out_for_delivery:"في الطريق للتوصيل",
     status_delivered:"تم التسليم", status_cancelled:"ملغي",
     markPreparing:"بدء التحضير", markReady:"جاهز", markDelivered:"تسليم", markCancelled:"إلغاء",
     noOrdersInStatus:"لا توجد طلبات",
@@ -1490,7 +1734,29 @@ const translations = {
     typeToConfirmClear:"للتأكيد، اكتب كلمة \"حذف\" بالضبط في المربع التالي:",
     clearConfirmPhrase:"حذف",
     clearCancelled:"تم إلغاء عملية المسح", clearingData:"جاري مسح البيانات...",
-    dataCleared:"تم مسح جميع البيانات", clearFailed:"فشلت عملية المسح"
+    dataCleared:"تم مسح جميع البيانات", clearFailed:"فشلت عملية المسح",
+    downloadTemplate:"تنزيل نموذج Excel", importFromExcel:"📥 استيراد من Excel",
+    importPreviewTitle:"معاينة الاستيراد", importErrorsFound:"تم تجاهل الصفوف التالية بسبب أخطاء:",
+    confirmImport:"تأكيد الاستيراد", importRow:"صف", importErrorNoName:"اسم المنتج مفقود",
+    importErrorNoPrice:"السعر مفقود أو غير صالح", importWillBeAdded:"منتج سيتم إضافته",
+    invalidImportFile:"ملف غير صالح — تأكد إنه ملف Excel أو CSV صحيح", importing:"جاري الاستيراد...",
+    importComplete:"تم استيراد المنتجات بنجاح", importFailed:"فشلت عملية الاستيراد",
+    nav_delivery:"الدليفري",
+    tabDeliveryZones:"مناطق التوصيل", tabDrivers:"السائقين",
+    zoneList:"مناطق التوصيل", addZone:"+ إضافة منطقة", editZone:"تعديل منطقة", noZonesYet:"لا توجد مناطق توصيل بعد",
+    zoneSaved:"تم حفظ المنطقة", zoneDeleted:"تم حذف المنطقة",
+    driverList:"قائمة السائقين", addDriver:"+ إضافة سائق", editDriver:"تعديل سائق", noDriversYet:"لا يوجد سائقين بعد",
+    driverActive:"نشط", driverInactive:"غير نشط", driverSaved:"تم حفظ السائق", driverDeleted:"تم حذف السائق",
+    deliveryAddress:"عنوان التوصيل", deliveryZone:"منطقة التوصيل", deliveryFee:"رسوم التوصيل",
+    platformSource:"مصدر الطلب",
+    platform_internal:"توصيل داخلي", platform_talabat:"طلبات", platform_ubereats:"أوبر إيتس",
+    platform_instashop:"إنستاشوب", platform_other:"أخرى",
+    assignDriverOptional:"السائق (اختياري)", unassigned:"— بدون تعيين —", noZoneSelected:"— بدون منطقة —",
+    assignDriverTitle:"تعيين سائق", driverSelect:"السائق", driverAssigned:"تم تعيين السائق",
+    noDriverAssigned:"لم يتم تعيين سائق", assignDriver:"تعيين سائق", changeDriver:"تغيير السائق",
+    markOutForDelivery:"بدأ التوصيل",
+    calories:"السعرات الحرارية (اختياري)", kcal:"سعرة",
+    categoriesWillBeAdded:"تصنيف سيتم إضافته", duplicatesSkipped:"تم تجاهلها لأنها مكررة"
   },
   en: {
     loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
@@ -1531,6 +1797,7 @@ const translations = {
     noBranchFirst:"Add at least one branch first", noProductFirst:"Add at least one product first",
     selectAtLeastOne:"Select at least one item",
     status_pending:"New", status_preparing:"Preparing", status_ready:"Ready",
+    status_out_for_delivery:"Out for Delivery",
     status_delivered:"Delivered", status_cancelled:"Cancelled",
     markPreparing:"Start Preparing", markReady:"Mark Ready", markDelivered:"Deliver", markCancelled:"Cancel",
     noOrdersInStatus:"No orders",
@@ -1631,7 +1898,29 @@ const translations = {
     typeToConfirmClear:"To confirm, type the word \"DELETE\" exactly in the box below:",
     clearConfirmPhrase:"DELETE",
     clearCancelled:"Clear operation cancelled", clearingData:"Clearing data...",
-    dataCleared:"All data has been cleared", clearFailed:"Clear operation failed"
+    dataCleared:"All data has been cleared", clearFailed:"Clear operation failed",
+    downloadTemplate:"Download Excel Template", importFromExcel:"📥 Import from Excel",
+    importPreviewTitle:"Import Preview", importErrorsFound:"The following rows were skipped due to errors:",
+    confirmImport:"Confirm Import", importRow:"Row", importErrorNoName:"Product name is missing",
+    importErrorNoPrice:"Price is missing or invalid", importWillBeAdded:"products will be added",
+    invalidImportFile:"Invalid file — make sure it's a valid Excel or CSV file", importing:"Importing...",
+    importComplete:"Products imported successfully", importFailed:"Import failed",
+    nav_delivery:"Delivery",
+    tabDeliveryZones:"Delivery Zones", tabDrivers:"Drivers",
+    zoneList:"Delivery Zones", addZone:"+ Add Zone", editZone:"Edit Zone", noZonesYet:"No delivery zones yet",
+    zoneSaved:"Zone saved", zoneDeleted:"Zone deleted",
+    driverList:"Drivers", addDriver:"+ Add Driver", editDriver:"Edit Driver", noDriversYet:"No drivers yet",
+    driverActive:"Active", driverInactive:"Inactive", driverSaved:"Driver saved", driverDeleted:"Driver deleted",
+    deliveryAddress:"Delivery Address", deliveryZone:"Delivery Zone", deliveryFee:"Delivery Fee",
+    platformSource:"Order Source",
+    platform_internal:"In-house Delivery", platform_talabat:"Talabat", platform_ubereats:"Uber Eats",
+    platform_instashop:"InstaShop", platform_other:"Other",
+    assignDriverOptional:"Driver (optional)", unassigned:"— Unassigned —", noZoneSelected:"— No zone —",
+    assignDriverTitle:"Assign Driver", driverSelect:"Driver", driverAssigned:"Driver assigned",
+    noDriverAssigned:"No driver assigned", assignDriver:"Assign Driver", changeDriver:"Change Driver",
+    markOutForDelivery:"Out for Delivery",
+    calories:"Calories (optional)", kcal:"kcal",
+    categoriesWillBeAdded:"categories will be added", duplicatesSkipped:"skipped as duplicates"
   }
 };
 
@@ -1725,6 +2014,8 @@ auth.onAuthStateChanged(async (user)=>{
     await loadSuppliers();
     await loadPurchaseOrders();
     await loadExpenses();
+    await loadDeliveryZones();
+    await loadDrivers();
     startOrdersListener();
   } else {
     currentUser = null;
@@ -2161,6 +2452,7 @@ function renderProductsGrid(){
       ? `<div class="product-img" style="background-image:url('${p.imageUrl}')"></div>`
       : `<div class="product-img">🍽️</div>`;
     const badge = p.available === false ? `<span class="unavailable-badge">${t('unavailable')}</span>` : '';
+    const caloriesHtml = (p.calories !== undefined && p.calories !== null) ? `<div class="calories-label">🔥 ${p.calories} ${t('kcal')}</div>` : '';
     let profitHtml = '';
     if(p.totalCost !== undefined && p.totalCost !== null){
       const profit = (p.price||0) - p.totalCost;
@@ -2173,6 +2465,7 @@ function renderProductsGrid(){
       <div class="product-body">
         <h4 title="${escapeHtml(name)}">${escapeHtml(name)}</h4>
         <div class="price">${Number(p.price||0).toFixed(2)}</div>
+        ${caloriesHtml}
         <div class="cat-label">${escapeHtml(catName)}</div>
         ${profitHtml}
         <div class="product-actions">
@@ -2205,6 +2498,7 @@ function openProductModal(productId){
     document.getElementById('productNameEnInput').value = p.name_en || '';
     document.getElementById('productPriceInput').value = p.price || '';
     document.getElementById('productCategoryInput').value = p.categoryId || '';
+    document.getElementById('productCaloriesInput').value = p.calories || '';
     document.getElementById('productAvailableInput').checked = p.available !== false;
     document.getElementById('productLaborCostInput').value = p.laborCost || '';
     document.getElementById('productOtherCostsInput').value = p.otherCosts || '';
@@ -2222,6 +2516,7 @@ function openProductModal(productId){
     document.getElementById('productNameArInput').value = '';
     document.getElementById('productNameEnInput').value = '';
     document.getElementById('productPriceInput').value = '';
+    document.getElementById('productCaloriesInput').value = '';
     document.getElementById('productAvailableInput').checked = true;
     document.getElementById('productLaborCostInput').value = '';
     document.getElementById('productOtherCostsInput').value = '';
@@ -2308,6 +2603,8 @@ async function saveProduct(){
   const name_en = document.getElementById('productNameEnInput').value.trim();
   const price = parseFloat(document.getElementById('productPriceInput').value);
   const categoryId = document.getElementById('productCategoryInput').value;
+  const caloriesRaw = document.getElementById('productCaloriesInput').value;
+  const calories = caloriesRaw !== '' ? Math.max(0, parseInt(caloriesRaw) || 0) : null;
   const available = document.getElementById('productAvailableInput').checked;
   const laborCost = parseFloat(document.getElementById('productLaborCostInput').value) || 0;
   const otherCosts = parseFloat(document.getElementById('productOtherCostsInput').value) || 0;
@@ -2340,7 +2637,7 @@ async function saveProduct(){
       progressEl.style.display = 'none';
     }
 
-    const data = { name_ar, name_en, price, categoryId, available, imageUrl, laborCost, otherCosts, bom, ingredientsCost, totalCost };
+    const data = { name_ar, name_en, price, categoryId, calories, available, imageUrl, laborCost, otherCosts, bom, ingredientsCost, totalCost };
 
     if(editingProductId){
       await productsCol().doc(editingProductId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
@@ -2356,6 +2653,296 @@ async function saveProduct(){
     showToast(e.message);
   }finally{
     saveBtn.disabled = false;
+  }
+}
+
+/* ---------- Bulk Product Import from Excel (SheetJS) ----------
+   Reads a spreadsheet (.xlsx/.xls/.csv), maps flexible Arabic/English column headers to
+   product fields, previews the parsed rows for confirmation, then bulk-creates products.
+   Categories referenced by name that don't already exist are created automatically. */
+let pendingProductImportRows = [];
+let pendingProductImportErrors = [];
+
+function downloadProductImportTemplate(){
+  const rows = [
+    { 'اسم المنتج':'برجر لحم', 'الاسم بالإنجليزي':'Beef Burger', 'السعر':120, 'التصنيف':'برجر', 'متاح':'نعم' },
+    { 'اسم المنتج':'بطاطس', 'الاسم بالإنجليزي':'Fries', 'السعر':35, 'التصنيف':'إضافات', 'متاح':'نعم' }
+  ];
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Products');
+  XLSX.writeFile(wb, 'product-import-template.xlsx');
+}
+
+function getImportField(row, variants){
+  const keys = Object.keys(row);
+  for(const v of variants){
+    const found = keys.find(k=> k.trim().toLowerCase() === v.trim().toLowerCase());
+    if(found && String(row[found]).trim() !== '') return String(row[found]).trim();
+  }
+  return '';
+}
+
+function parseImportAvailable(v){
+  if(v === '') return true;
+  const s = v.trim().toLowerCase();
+  return !['لا','no','false','0'].includes(s);
+}
+
+function handleProductImportFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type:'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+
+      pendingProductImportRows = [];
+      pendingProductImportErrors = [];
+
+      rows.forEach((row, idx)=>{
+        const name_ar = getImportField(row, ['اسم المنتج','الاسم','Name','Product Name']);
+        const name_en = getImportField(row, ['الاسم بالإنجليزي','English Name','Name (English)']);
+        const priceRaw = getImportField(row, ['السعر','Price']);
+        const categoryName = getImportField(row, ['التصنيف','Category']);
+        const availableRaw = getImportField(row, ['متاح','Available']);
+        const caloriesRaw = getImportField(row, ['السعرات الحرارية','السعرات','Calories','Kcal']);
+
+        const price = parseFloat(priceRaw);
+        if(!name_ar && !name_en){
+          pendingProductImportErrors.push(`${t('importRow')} ${idx+2}: ${t('importErrorNoName')}`);
+          return;
+        }
+        if(isNaN(price) || price < 0){
+          pendingProductImportErrors.push(`${t('importRow')} ${idx+2}: ${t('importErrorNoPrice')}`);
+          return;
+        }
+        const calories = caloriesRaw !== '' ? Math.max(0, parseInt(caloriesRaw) || 0) : null;
+        pendingProductImportRows.push({
+          name_ar, name_en, price, calories,
+          categoryName: categoryName || '',
+          available: parseImportAvailable(availableRaw)
+        });
+      });
+
+      renderProductImportPreview();
+      document.getElementById('productImportModal').classList.add('active');
+    }catch(err){
+      console.error('handleProductImportFile error', err);
+      showToast(t('invalidImportFile'));
+    }finally{
+      event.target.value = ''; // allow re-selecting the same file later
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderProductImportPreview(){
+  const summaryEl = document.getElementById('importSummaryText');
+  summaryEl.textContent = `${pendingProductImportRows.length} ${t('importWillBeAdded')}`;
+
+  const errorsWrap = document.getElementById('importErrorsWrap');
+  if(pendingProductImportErrors.length > 0){
+    errorsWrap.style.display = 'block';
+    document.getElementById('importErrorsList').innerHTML = pendingProductImportErrors.map(e=> `<div>${escapeHtml(e)}</div>`).join('');
+  } else {
+    errorsWrap.style.display = 'none';
+  }
+
+  document.getElementById('importPreviewTbody').innerHTML = pendingProductImportRows.map(r=> `<tr>
+    <td style="padding:6px; border-top:1px solid var(--border);">${escapeHtml(r.name_ar || r.name_en)}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${r.price.toFixed(2)}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${escapeHtml(r.categoryName || '—')}</td>
+  </tr>`).join('');
+
+  document.getElementById('confirmImportBtn').disabled = pendingProductImportRows.length === 0;
+}
+
+function closeProductImportModal(){
+  document.getElementById('productImportModal').classList.remove('active');
+  pendingProductImportRows = [];
+  pendingProductImportErrors = [];
+}
+
+async function commitProductImport(){
+  if(pendingProductImportRows.length === 0) return;
+  const btn = document.getElementById('confirmImportBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = t('importing');
+
+  try{
+    // Resolve category names to IDs, creating any category that doesn't already exist
+    // (matched case-insensitively against current categories) before writing products.
+    const categoryNameToId = {};
+    categoriesCache.forEach(c=>{
+      if(c.name_ar) categoryNameToId[c.name_ar.trim().toLowerCase()] = c.id;
+      if(c.name_en) categoryNameToId[c.name_en.trim().toLowerCase()] = c.id;
+    });
+
+    for(const row of pendingProductImportRows){
+      if(!row.categoryName) continue;
+      const key = row.categoryName.trim().toLowerCase();
+      if(!categoryNameToId[key]){
+        const newCat = await categoriesCol().add({ name_ar: row.categoryName, name_en:'', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        categoryNameToId[key] = newCat.id;
+      }
+    }
+
+    let fallbackCategoryId = categoriesCache[0]?.id || Object.values(categoryNameToId)[0];
+    if(!fallbackCategoryId){
+      // No categories exist at all yet — create a generic one so import doesn't fail outright.
+      const generic = await categoriesCol().add({ name_ar: t('cat_other'), name_en:'Other', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      fallbackCategoryId = generic.id;
+    }
+
+    const writeOps = pendingProductImportRows.map(row=>{
+      const categoryId = row.categoryName ? categoryNameToId[row.categoryName.trim().toLowerCase()] : fallbackCategoryId;
+      const data = {
+        name_ar: row.name_ar, name_en: row.name_en, price: row.price, categoryId,
+        available: row.available, imageUrl:'', laborCost:0, otherCosts:0, bom:{},
+        ingredientsCost:0, totalCost: row.price,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      return (batch)=> batch.set(productsCol().doc(), data);
+    });
+    await commitInChunks(writeOps);
+
+    await loadCategories();
+    await loadProducts();
+    closeProductImportModal();
+    showToast(`${t('importComplete')} (${writeOps.length})`);
+  }catch(e){
+    console.error('commitProductImport error', e);
+    showToast(t('importFailed') + ': ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+/* ---------- Bulk Category Import from Excel (SheetJS) ----------
+   Same pattern as product import: template download, flexible-header parsing, a preview
+   modal for confirmation, then a chunked batch write. */
+let pendingCategoryImportRows = [];
+let pendingCategoryImportErrors = [];
+
+function downloadCategoryImportTemplate(){
+  const rows = [
+    { 'الاسم (عربي)':'برجر', 'الاسم (إنجليزي)':'Burgers' },
+    { 'الاسم (عربي)':'مشروبات', 'الاسم (إنجليزي)':'Beverages' }
+  ];
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Categories');
+  XLSX.writeFile(wb, 'category-import-template.xlsx');
+}
+
+function handleCategoryImportFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type:'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+
+      pendingCategoryImportRows = [];
+      pendingCategoryImportErrors = [];
+
+      rows.forEach((row, idx)=>{
+        const name_ar = getImportField(row, ['الاسم (عربي)','اسم القسم','الاسم','Name (Arabic)','Name']);
+        const name_en = getImportField(row, ['الاسم (إنجليزي)','English Name','Name (English)']);
+
+        if(!name_ar && !name_en){
+          pendingCategoryImportErrors.push(`${t('importRow')} ${idx+2}: ${t('importErrorNoName')}`);
+          return;
+        }
+        pendingCategoryImportRows.push({ name_ar, name_en });
+      });
+
+      renderCategoryImportPreview();
+      document.getElementById('categoryImportModal').classList.add('active');
+    }catch(err){
+      console.error('handleCategoryImportFile error', err);
+      showToast(t('invalidImportFile'));
+    }finally{
+      event.target.value = '';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderCategoryImportPreview(){
+  document.getElementById('catImportSummaryText').textContent = `${pendingCategoryImportRows.length} ${t('categoriesWillBeAdded')}`;
+
+  const errorsWrap = document.getElementById('catImportErrorsWrap');
+  if(pendingCategoryImportErrors.length > 0){
+    errorsWrap.style.display = 'block';
+    document.getElementById('catImportErrorsList').innerHTML = pendingCategoryImportErrors.map(e=> `<div>${escapeHtml(e)}</div>`).join('');
+  } else {
+    errorsWrap.style.display = 'none';
+  }
+
+  document.getElementById('catImportPreviewTbody').innerHTML = pendingCategoryImportRows.map(r=> `<tr>
+    <td style="padding:6px; border-top:1px solid var(--border);">${escapeHtml(r.name_ar||'—')}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${escapeHtml(r.name_en||'—')}</td>
+  </tr>`).join('');
+
+  document.getElementById('confirmCatImportBtn').disabled = pendingCategoryImportRows.length === 0;
+}
+
+function closeCategoryImportModal(){
+  document.getElementById('categoryImportModal').classList.remove('active');
+  pendingCategoryImportRows = [];
+  pendingCategoryImportErrors = [];
+}
+
+async function commitCategoryImport(){
+  if(pendingCategoryImportRows.length === 0) return;
+  const btn = document.getElementById('confirmCatImportBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = t('importing');
+
+  try{
+    // Skip rows that duplicate an existing category name (case-insensitive) so re-running
+    // an import (or importing a list that overlaps current categories) doesn't create dupes.
+    const existingNames = new Set();
+    categoriesCache.forEach(c=>{
+      if(c.name_ar) existingNames.add(c.name_ar.trim().toLowerCase());
+      if(c.name_en) existingNames.add(c.name_en.trim().toLowerCase());
+    });
+
+    const rowsToAdd = pendingCategoryImportRows.filter(row=>{
+      const key1 = row.name_ar ? row.name_ar.trim().toLowerCase() : null;
+      const key2 = row.name_en ? row.name_en.trim().toLowerCase() : null;
+      return !((key1 && existingNames.has(key1)) || (key2 && existingNames.has(key2)));
+    });
+
+    const writeOps = rowsToAdd.map(row=>{
+      const data = { name_ar: row.name_ar, name_en: row.name_en, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+      return (batch)=> batch.set(categoriesCol().doc(), data);
+    });
+    await commitInChunks(writeOps);
+
+    await loadCategories();
+    closeCategoryImportModal();
+    const skipped = pendingCategoryImportRows.length - rowsToAdd.length;
+    showToast(`${t('importComplete')} (${writeOps.length})` + (skipped > 0 ? ` — ${skipped} ${t('duplicatesSkipped')}` : ''));
+  }catch(e){
+    console.error('commitCategoryImport error', e);
+    showToast(t('importFailed') + ': ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
   }
 }
 
@@ -2446,6 +3033,7 @@ function renderOrderCard(o){
   const itemsSummary = (o.items||[]).map(it=> `${it.qty}× ${escapeHtml(it.name)}`).join('، ');
   const typeLabel = t(o.orderType === 'dine-in' ? 'dineIn' : o.orderType === 'takeaway' ? 'takeaway' : 'delivery');
   const shortId = o.id.slice(0,6).toUpperCase();
+  const isDelivery = o.orderType === 'delivery';
 
   let actionsHtml = '';
   let shortageHtml = '';
@@ -2459,7 +3047,26 @@ function renderOrderCard(o){
       shortageHtml = `<div style="font-size:11px; color:var(--danger); margin-bottom:6px;">⚠️ ${t('insufficientStock')}: ${shortages.map(escapeHtml).join('، ')}</div>`;
     }
   } else if(o.status === 'ready'){
+    // Delivery orders get an extra "out for delivery" step; dine-in/takeaway go straight
+    // to delivered, same as before.
+    actionsHtml = isDelivery
+      ? `<button class="primary-action" onclick="updateOrderStatus('${o.id}','out_for_delivery')">${t('markOutForDelivery')}</button>`
+      : `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>`;
+  } else if(o.status === 'out_for_delivery'){
     actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>`;
+  }
+
+  // Delivery-specific info block: driver, platform source, delivery fee/address —
+  // only rendered for delivery-type orders so dine-in/takeaway cards stay unchanged.
+  let deliveryInfoHtml = '';
+  if(isDelivery){
+    const platformLabel = o.platformSource ? t('platform_'+o.platformSource) : '';
+    const driverLine = o.driverName ? `🛵 ${escapeHtml(o.driverName)}` : `<span style="color:var(--danger);">🛵 ${t('noDriverAssigned')}</span>`;
+    deliveryInfoHtml = `<div style="font-size:11px; color:var(--muted); margin:4px 0; display:flex; flex-direction:column; gap:2px;">
+      ${platformLabel ? `<span class="delivery-platform-badge">${escapeHtml(platformLabel)}</span>` : ''}
+      <span>${driverLine}</span>
+      ${o.deliveryAddress ? `<span>📍 ${escapeHtml(o.deliveryAddress)}</span>` : ''}
+    </div>`;
   }
 
   return `<div class="order-card status-${o.status||'pending'}">
@@ -2471,8 +3078,10 @@ function renderOrderCard(o){
     <div class="branch-tag">🏢 ${escapeHtml(branchName)}</div>
     <div class="items-summary">${itemsSummary}</div>
     ${o.couponCode ? `<div style="font-size:11px; color:var(--ok); margin-bottom:4px;">🏷️ ${escapeHtml(o.couponCode)}</div>` : ''}
+    ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
+    ${isDelivery && (o.status==='ready' || o.status==='out_for_delivery') ? `<button class="btn btn-outline" style="width:100%; margin-bottom:6px; font-size:12px; padding:6px;" onclick="openAssignDriverModal('${o.id}')">${o.driverName ? t('changeDriver') : t('assignDriver')}</button>` : ''}
     ${actionsHtml ? `<div class="order-card-actions">${actionsHtml}</div>` : ''}
   </div>`;
 }
@@ -2506,6 +3115,230 @@ async function updateOrderStatus(orderId, newStatus){
     console.error('updateOrderStatus error', e);
     showToast(e.message);
   }
+}
+
+// Quick "assign/change driver" action from an order card, without reopening the full
+// order form — used once an order is ready or already out for delivery.
+let assigningDriverOrderId = null;
+function openAssignDriverModal(orderId){
+  assigningDriverOrderId = orderId;
+  const order = ordersCache.find(o=> o.id === orderId);
+  const sel = document.getElementById('assignDriverSelect');
+  sel.innerHTML = `<option value="">${t('unassigned')}</option>` +
+    driversCache.filter(d=> d.active !== false).map(d=> `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+  sel.value = order && order.driverId ? order.driverId : '';
+  document.getElementById('assignDriverModal').classList.add('active');
+}
+function closeAssignDriverModal(){
+  document.getElementById('assignDriverModal').classList.remove('active');
+  assigningDriverOrderId = null;
+}
+async function saveAssignedDriver(){
+  if(!assigningDriverOrderId) return;
+  const driverId = document.getElementById('assignDriverSelect').value;
+  const driver = driverId ? driversCache.find(d=> d.id === driverId) : null;
+  try{
+    await ordersCol().doc(assigningDriverOrderId).update({
+      driverId: driverId || null,
+      driverName: driver ? driver.name : null
+    });
+    showToast(t('driverAssigned'));
+    closeAssignDriverModal();
+  }catch(e){
+    console.error('saveAssignedDriver error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Delivery Zones (Firestore: restaurants/{rid}/deliveryZones/{zoneId}) ---------- */
+function deliveryZonesCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('deliveryZones');
+}
+
+async function loadDeliveryZones(){
+  try{
+    const snap = await deliveryZonesCol().orderBy('createdAt','desc').get();
+    deliveryZonesCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderDeliveryZonesTable();
+  }catch(e){
+    console.error('loadDeliveryZones error', e);
+  }
+}
+
+function renderDeliveryZonesTable(){
+  const table = document.getElementById('zonesTable');
+  const empty = document.getElementById('zonesEmpty');
+  const tbody = document.getElementById('zonesTbody');
+  if(!table) return;
+
+  if(deliveryZonesCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = deliveryZonesCache.map(z=> `<tr>
+    <td>${escapeHtml(z.name)}</td>
+    <td>${Number(z.fee||0).toFixed(2)}</td>
+    <td class="row-actions">
+      <button onclick="openDeliveryZoneModal('${z.id}')" title="${t('edit')}">✏️</button>
+      <button onclick="deleteDeliveryZone('${z.id}')" title="${t('delete')}">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openDeliveryZoneModal(zoneId){
+  editingDeliveryZoneId = zoneId || null;
+  document.getElementById('deliveryZoneModalTitle').textContent = zoneId ? t('editZone') : t('addZone');
+  if(zoneId){
+    const z = deliveryZonesCache.find(x=> x.id === zoneId);
+    document.getElementById('zoneNameInput').value = z.name || '';
+    document.getElementById('zoneFeeInput').value = z.fee || '';
+  } else {
+    document.getElementById('zoneNameInput').value = '';
+    document.getElementById('zoneFeeInput').value = '';
+  }
+  document.getElementById('deliveryZoneModal').classList.add('active');
+}
+function closeDeliveryZoneModal(){
+  document.getElementById('deliveryZoneModal').classList.remove('active');
+}
+
+async function saveDeliveryZone(){
+  const name = document.getElementById('zoneNameInput').value.trim();
+  const fee = Math.max(0, parseFloat(document.getElementById('zoneFeeInput').value) || 0);
+  if(!name){ showToast(t('fillRequired')); return; }
+
+  const saveBtn = document.getElementById('saveZoneBtn');
+  saveBtn.disabled = true;
+  try{
+    if(editingDeliveryZoneId){
+      await deliveryZonesCol().doc(editingDeliveryZoneId).update({ name, fee, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await deliveryZonesCol().add({ name, fee, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeDeliveryZoneModal();
+    showToast(t('zoneSaved'));
+    await loadDeliveryZones();
+  }catch(e){
+    console.error('saveDeliveryZone error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteDeliveryZone(zoneId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await deliveryZonesCol().doc(zoneId).delete();
+    showToast(t('zoneDeleted'));
+    await loadDeliveryZones();
+  }catch(e){
+    console.error('deleteDeliveryZone error', e);
+    showToast(e.message);
+  }
+}
+
+/* ---------- Drivers (Firestore: restaurants/{rid}/drivers/{driverId}) ---------- */
+function driversCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('drivers');
+}
+
+async function loadDrivers(){
+  try{
+    const snap = await driversCol().orderBy('createdAt','desc').get();
+    driversCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderDriversTable();
+  }catch(e){
+    console.error('loadDrivers error', e);
+  }
+}
+
+function renderDriversTable(){
+  const table = document.getElementById('driversTable');
+  const empty = document.getElementById('driversEmpty');
+  const tbody = document.getElementById('driversTbody');
+  if(!table) return;
+
+  if(driversCache.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = driversCache.map(d=> `<tr>
+    <td>${escapeHtml(d.name)}</td>
+    <td>${escapeHtml(d.phone||'—')}</td>
+    <td>${d.active !== false ? `<span class="stock-badge ok">${t('driverActive')}</span>` : `<span class="stock-badge low">${t('driverInactive')}</span>`}</td>
+    <td class="row-actions">
+      <button onclick="openDriverModal('${d.id}')" title="${t('edit')}">✏️</button>
+      <button onclick="deleteDriver('${d.id}')" title="${t('delete')}">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openDriverModal(driverId){
+  editingDriverId = driverId || null;
+  document.getElementById('driverModalTitle').textContent = driverId ? t('editDriver') : t('addDriver');
+  if(driverId){
+    const d = driversCache.find(x=> x.id === driverId);
+    document.getElementById('driverNameInput').value = d.name || '';
+    document.getElementById('driverPhoneInput').value = d.phone || '';
+    document.getElementById('driverActiveInput').checked = d.active !== false;
+  } else {
+    document.getElementById('driverNameInput').value = '';
+    document.getElementById('driverPhoneInput').value = '';
+    document.getElementById('driverActiveInput').checked = true;
+  }
+  document.getElementById('driverModal').classList.add('active');
+}
+function closeDriverModal(){
+  document.getElementById('driverModal').classList.remove('active');
+}
+
+async function saveDriver(){
+  const name = document.getElementById('driverNameInput').value.trim();
+  const phone = document.getElementById('driverPhoneInput').value.trim();
+  const active = document.getElementById('driverActiveInput').checked;
+  if(!name){ showToast(t('fillRequired')); return; }
+
+  const saveBtn = document.getElementById('saveDriverBtn');
+  saveBtn.disabled = true;
+  try{
+    if(editingDriverId){
+      await driversCol().doc(editingDriverId).update({ name, phone, active, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await driversCol().add({ name, phone, active, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeDriverModal();
+    showToast(t('driverSaved'));
+    await loadDrivers();
+  }catch(e){
+    console.error('saveDriver error', e);
+    showToast(e.message);
+  }finally{
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteDriver(driverId){
+  if(!confirm(t('confirmDelete'))) return;
+  try{
+    await driversCol().doc(driverId).delete();
+    showToast(t('driverDeleted'));
+    await loadDrivers();
+  }catch(e){
+    console.error('deleteDriver error', e);
+    showToast(e.message);
+  }
+}
+
+function switchDeliveryTab(tab){
+  showModule('delivery');
+  document.querySelectorAll('#module-delivery .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.deltab===tab));
+  document.querySelectorAll('#module-delivery .tab-pane').forEach(p=> p.classList.remove('active'));
+  document.getElementById('delTab-'+tab).classList.add('active');
 }
 
 async function deductStockForOrder(order){
@@ -2555,6 +3388,9 @@ function openOrderModal(){
   document.getElementById('orderCustomerPhoneInput').value = '';
   document.getElementById('orderCouponInput').value = '';
   document.getElementById('couponFeedback').textContent = '';
+  document.getElementById('orderDeliveryAddressInput').value = '';
+  document.getElementById('orderDeliveryFeeInput').value = '';
+  document.getElementById('orderPlatformSourceInput').value = 'internal';
 
   const branchSel = document.getElementById('orderBranchInput');
   branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
@@ -2567,6 +3403,7 @@ function openOrderModal(){
     branchSel.value = lastBranchId;
   }
   document.getElementById('orderTypeInput').value = getRememberedOrderPref('lastOrderType') || 'dine-in';
+  toggleDeliveryFields(); // shows/hides + populates zone & driver selects based on the restored type
 
   renderOrderItemsPicker();
   updateOrderTotalDisplay();
@@ -2637,6 +3474,7 @@ function renderOrderItemsPicker(){
       <div class="product-tile-info">
         <div class="product-tile-name">${escapeHtml(name)}</div>
         <div class="product-tile-price">${Number(p.price||0).toFixed(2)}</div>
+        ${(p.calories !== undefined && p.calories !== null) ? `<div class="product-tile-calories">🔥 ${p.calories} ${t('kcal')}</div>` : ''}
         ${maxLabel}
       </div>
     </div>`;
@@ -2689,10 +3527,19 @@ function computeDiscount(subtotal){
   return Math.min(appliedCoupon.value, subtotal);
 }
 
+// Delivery fee is added on top of the discounted subtotal, and only applies when the
+// order type is "delivery" — hidden/zeroed out for dine-in and takeaway.
+function getCurrentDeliveryFee(){
+  const typeSel = document.getElementById('orderTypeInput');
+  if(!typeSel || typeSel.value !== 'delivery') return 0;
+  const feeInput = document.getElementById('orderDeliveryFeeInput');
+  return feeInput ? (parseFloat(feeInput.value) || 0) : 0;
+}
+
 function computeOrderTotal(){
   const subtotal = computeOrderSubtotal();
   const discount = computeDiscount(subtotal);
-  return Math.max(0, subtotal - discount);
+  return Math.max(0, subtotal - discount) + getCurrentDeliveryFee();
 }
 
 function applyOrderCoupon(){
@@ -2736,10 +3583,12 @@ function applyOrderCoupon(){
 function updateOrderTotalDisplay(){
   const subtotal = computeOrderSubtotal();
   const discount = computeDiscount(subtotal);
-  const total = Math.max(0, subtotal - discount);
+  const deliveryFee = getCurrentDeliveryFee();
+  const total = Math.max(0, subtotal - discount) + deliveryFee;
 
   const subtotalLine = document.getElementById('orderSubtotalLine');
   const discountLine = document.getElementById('orderDiscountLine');
+  const deliveryFeeLine = document.getElementById('orderDeliveryFeeLine');
 
   if(appliedCoupon && discount > 0){
     subtotalLine.style.display = 'flex';
@@ -2750,7 +3599,42 @@ function updateOrderTotalDisplay(){
     subtotalLine.style.display = 'none';
     discountLine.style.display = 'none';
   }
+  if(deliveryFee > 0){
+    deliveryFeeLine.style.display = 'flex';
+    document.getElementById('orderDeliveryFeeDisplay').textContent = deliveryFee.toFixed(2);
+  } else {
+    deliveryFeeLine.style.display = 'none';
+  }
   document.getElementById('orderTotalDisplay').textContent = total.toFixed(2);
+}
+
+// Shows/hides the delivery-only fields (address, zone, fee, platform, driver) based on
+// the selected order type, and populates the zone/driver dropdowns from the current cache.
+function toggleDeliveryFields(){
+  const isDelivery = document.getElementById('orderTypeInput').value === 'delivery';
+  document.getElementById('deliveryFieldsSection').style.display = isDelivery ? 'block' : 'none';
+  if(isDelivery){
+    populateOrderDeliverySelects();
+  }
+  updateOrderTotalDisplay();
+}
+
+function populateOrderDeliverySelects(){
+  const zoneSel = document.getElementById('orderDeliveryZoneInput');
+  zoneSel.innerHTML = `<option value="">${t('noZoneSelected')}</option>` +
+    deliveryZonesCache.map(z=> `<option value="${z.id}" data-fee="${z.fee||0}">${escapeHtml(z.name)} (${Number(z.fee||0).toFixed(2)})</option>`).join('');
+
+  const driverSel = document.getElementById('orderDriverInput');
+  driverSel.innerHTML = `<option value="">${t('unassigned')}</option>` +
+    driversCache.filter(d=> d.active !== false).map(d=> `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+}
+
+function applyDeliveryZoneFee(){
+  const zoneSel = document.getElementById('orderDeliveryZoneInput');
+  const selectedOption = zoneSel.options[zoneSel.selectedIndex];
+  const fee = selectedOption ? parseFloat(selectedOption.dataset.fee || 0) : 0;
+  document.getElementById('orderDeliveryFeeInput').value = fee || '';
+  updateOrderTotalDisplay();
 }
 
 async function saveOrder(){
@@ -2772,14 +3656,35 @@ async function saveOrder(){
   });
   const subtotal = computeOrderSubtotal();
   const discount = computeDiscount(subtotal);
-  const total = Math.max(0, subtotal - discount);
+  const deliveryFee = getCurrentDeliveryFee();
+  const total = Math.max(0, subtotal - discount) + deliveryFee;
+
+  // Delivery-only fields — only populated (and only relevant) when orderType is 'delivery'.
+  let deliveryData = {};
+  if(orderType === 'delivery'){
+    const zoneSel = document.getElementById('orderDeliveryZoneInput');
+    const zoneOption = zoneSel.options[zoneSel.selectedIndex];
+    const driverSel = document.getElementById('orderDriverInput');
+    const driverId = driverSel.value;
+    const driver = driverId ? driversCache.find(d=> d.id === driverId) : null;
+    deliveryData = {
+      deliveryAddress: document.getElementById('orderDeliveryAddressInput').value.trim(),
+      deliveryZoneId: zoneSel.value || null,
+      deliveryZoneName: zoneSel.value && zoneOption ? zoneOption.textContent.replace(/\s*\([^)]*\)$/, '') : null,
+      deliveryFee,
+      platformSource: document.getElementById('orderPlatformSourceInput').value,
+      driverId: driverId || null,
+      driverName: driver ? driver.name : null
+    };
+  }
 
   const saveBtn = document.getElementById('saveOrderBtn');
   saveBtn.disabled = true;
   try{
     await ordersCol().add({
       branchId, orderType, customerName, customerPhone, items,
-      subtotal, discount, total,
+      subtotal, discount, deliveryFee, total,
+      ...deliveryData,
       couponCode: appliedCoupon ? appliedCoupon.code : null,
       status: 'pending',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -4107,7 +5012,9 @@ const ALL_DATA_COLLECTIONS = [
   { key:'ingredients', col:ingredientsCol },
   { key:'suppliers', col:suppliersCol },
   { key:'expenses', col:expensesCol },
-  { key:'purchaseOrders', col:poCol }
+  { key:'purchaseOrders', col:poCol },
+  { key:'deliveryZones', col:deliveryZonesCol },
+  { key:'drivers', col:driversCol }
 ];
 
 // Firestore Timestamp fields don't survive JSON.stringify/parse directly — serialize them
@@ -4222,6 +5129,8 @@ async function restoreAllData(){
     await loadSuppliers();
     await loadPurchaseOrders();
     await loadExpenses();
+    await loadDeliveryZones();
+    await loadDrivers();
     startOrdersListener();
     showModule('dashboard');
   }catch(e){
@@ -4262,6 +5171,8 @@ async function clearAllData(){
     await loadSuppliers();
     await loadPurchaseOrders();
     await loadExpenses();
+    await loadDeliveryZones();
+    await loadDrivers();
     startOrdersListener();
     showModule('dashboard');
   }catch(e){
