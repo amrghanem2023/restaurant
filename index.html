@@ -929,16 +929,16 @@
       </select>
     </div>
     <div class="field">
-      <label data-i18n="customerName">اسم العميل</label>
+      <label data-i18n="selectItems">اختر المنتجات</label>
+      <div class="order-items-picker" id="orderItemsPicker"></div>
+    </div>
+    <div class="field">
+      <label data-i18n="customerName">اسم العميل (اختياري)</label>
       <input type="text" id="orderCustomerNameInput" placeholder="اسم العميل">
     </div>
     <div class="field">
-      <label data-i18n="customerPhone">رقم الهاتف</label>
+      <label data-i18n="customerPhone">رقم الهاتف (اختياري)</label>
       <input type="text" id="orderCustomerPhoneInput" placeholder="01xxxxxxxxx">
-    </div>
-    <div class="field">
-      <label data-i18n="selectItems">اختر المنتجات</label>
-      <div class="order-items-picker" id="orderItemsPicker"></div>
     </div>
     <div class="field">
       <label data-i18n="couponCode">كود الكوبون (اختياري)</label>
@@ -1342,7 +1342,7 @@ const translations = {
     confirmDeleteCategory:"حذف التصنيف لن يحذف منتجاته، لكنها ستصبح بدون تصنيف. متابعة؟",
     ordersBoard:"لوحة الطلبات", addOrder:"+ طلب جديد", colBranch:"الفرع",
     orderType:"نوع الطلب", dineIn:"صالة", takeaway:"تيك أواي", delivery:"دليفري",
-    customerName:"اسم العميل", customerPhone:"رقم الهاتف", selectItems:"اختر المنتجات",
+    customerName:"اسم العميل (اختياري)", customerPhone:"رقم الهاتف (اختياري)", selectItems:"اختر المنتجات",
     total:"الإجمالي", orderSaved:"تم حفظ الطلب", orderDeleted:"تم حذف الطلب",
     noBranchFirst:"أضف فرع واحد على الأقل أولاً", noProductFirst:"أضف منتج واحد على الأقل أولاً",
     selectAtLeastOne:"اختر منتج واحد على الأقل",
@@ -1464,7 +1464,7 @@ const translations = {
     confirmDeleteCategory:"Deleting this category won't delete its products, but they'll become uncategorized. Continue?",
     ordersBoard:"Orders Board", addOrder:"+ New Order", colBranch:"Branch",
     orderType:"Order Type", dineIn:"Dine-in", takeaway:"Takeaway", delivery:"Delivery",
-    customerName:"Customer Name", customerPhone:"Phone Number", selectItems:"Select Items",
+    customerName:"Customer Name (optional)", customerPhone:"Phone Number (optional)", selectItems:"Select Items",
     total:"Total", orderSaved:"Order saved", orderDeleted:"Order deleted",
     noBranchFirst:"Add at least one branch first", noProductFirst:"Add at least one product first",
     selectAtLeastOne:"Select at least one item",
@@ -2472,16 +2472,35 @@ function openOrderModal(){
   appliedCoupon = null;
   document.getElementById('orderCustomerNameInput').value = '';
   document.getElementById('orderCustomerPhoneInput').value = '';
-  document.getElementById('orderTypeInput').value = 'dine-in';
   document.getElementById('orderCouponInput').value = '';
   document.getElementById('couponFeedback').textContent = '';
 
   const branchSel = document.getElementById('orderBranchInput');
   branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
 
+  // Most orders in a session use the same branch and order type — re-selecting them
+  // every single time is pure repeated data entry. Restore whatever was used last
+  // instead of resetting to the first branch / "dine-in" every time the modal opens.
+  const lastBranchId = getRememberedOrderPref('lastOrderBranchId');
+  if(lastBranchId && [...branchSel.options].some(o=> o.value === lastBranchId)){
+    branchSel.value = lastBranchId;
+  }
+  document.getElementById('orderTypeInput').value = getRememberedOrderPref('lastOrderType') || 'dine-in';
+
   renderOrderItemsPicker();
   updateOrderTotalDisplay();
   document.getElementById('orderModal').classList.add('active');
+}
+
+// Small persisted-preference helpers (falls back to an in-memory value if localStorage
+// is unavailable, e.g. private browsing) — used only for non-sensitive UI convenience
+// like "last branch used", never for order or customer data itself.
+const orderPrefsMemoryFallback = {};
+function getRememberedOrderPref(key){
+  try{ return localStorage.getItem(key); }catch(e){ return orderPrefsMemoryFallback[key] || null; }
+}
+function setRememberedOrderPref(key, value){
+  try{ localStorage.setItem(key, value); }catch(e){ orderPrefsMemoryFallback[key] = value; }
 }
 
 function closeOrderModal(){
@@ -2690,6 +2709,10 @@ async function saveOrder(){
       await couponsCol().doc(appliedCoupon.id).update({ usedCount: firebase.firestore.FieldValue.increment(1) });
       await loadCoupons();
     }
+    // Remember this branch/order type as the default for next time — most sessions use
+    // the same values repeatedly (e.g. one branch, mostly dine-in orders).
+    setRememberedOrderPref('lastOrderBranchId', branchId);
+    setRememberedOrderPref('lastOrderType', orderType);
     closeOrderModal();
     showToast(t('orderSaved'));
   }catch(e){
