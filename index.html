@@ -310,6 +310,10 @@
 
     <!-- Dashboard Module -->
     <div id="module-dashboard" class="module-content">
+      <div class="low-stock-banner" id="dashboardLowStockBanner" style="display:none; cursor:pointer;" onclick="showModule('inventory')">
+        <span>⚠️</span>
+        <span id="dashboardLowStockText"></span>
+      </div>
       <div class="cards-grid">
         <div class="stat-card">
           <div class="label" data-i18n="statBranches">عدد الفروع</div>
@@ -317,16 +321,19 @@
         </div>
         <div class="stat-card">
           <div class="label" data-i18n="statOrdersToday">طلبات اليوم</div>
-          <div class="value">0</div>
-          <div class="sub" data-i18n="statPending">— بانتظار التفعيل</div>
+          <div class="value" id="statOrdersToday">0</div>
         </div>
         <div class="stat-card">
           <div class="label" data-i18n="statRevenueToday">إيرادات اليوم</div>
-          <div class="value">0 <span style="font-size:13px;">EGP</span></div>
+          <div class="value" id="statRevenueToday">0 <span style="font-size:13px;">EGP</span></div>
         </div>
         <div class="stat-card">
           <div class="label" data-i18n="statStaff">عدد الموظفين</div>
           <div class="value" id="statStaffCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="statLowStock">نواقص المخزون</div>
+          <div class="value" id="statLowStockCount">0</div>
         </div>
       </div>
       <div class="panel">
@@ -1282,7 +1289,8 @@ const translations = {
     stockAvailabilityReport:"تقرير إتاحة المخزون", stockAvailabilityDesc:"أقصى عدد وحدات يمكن تجهيزها من كل منتج بناءً على المخزون الحالي للمكونات",
     unlimitedStock:"غير محدود (لا يوجد وصفة مرتبطة)", zeroStockProduct:"غير متاح — نفد أحد المكونات",
     bottleneckIngredient:"المكوّن المحدِّد", confirmReadyShortage:"هذا الطلب يحتاج مكونات ناقصة عن المخزون المتاح. هل تريد المتابعة رغم ذلك؟",
-    stockCannotBeNegative:"لا يمكن أن يكون المخزون رقمًا سالبًا — تم ضبطه على صفر"
+    stockCannotBeNegative:"لا يمكن أن يكون المخزون رقمًا سالبًا — تم ضبطه على صفر",
+    statLowStock:"نواقص المخزون", clickToReview:"اضغط للمراجعة"
   },
   en: {
     loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
@@ -1388,7 +1396,8 @@ const translations = {
     stockAvailabilityReport:"Stock Availability Report", stockAvailabilityDesc:"Maximum units of each product that can be prepared based on current ingredient stock",
     unlimitedStock:"Unlimited (no recipe linked)", zeroStockProduct:"Unavailable — an ingredient is out of stock",
     bottleneckIngredient:"Limiting ingredient", confirmReadyShortage:"This order needs more of some ingredients than is currently in stock. Continue anyway?",
-    stockCannotBeNegative:"Stock can't be negative — it was set to zero"
+    stockCannotBeNegative:"Stock can't be negative — it was set to zero",
+    statLowStock:"Low Stock Items", clickToReview:"Click to review"
   }
 };
 
@@ -1499,12 +1508,14 @@ function showModule(name){
   document.querySelectorAll('.nav-item').forEach(n=> n.classList.remove('active'));
   document.querySelector('.nav-item[data-module="'+name+'"]').classList.add('active');
   document.getElementById('moduleTitle').textContent = t('nav_'+name);
+  if(name === 'dashboard') updateDashboardStats();
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
 }
 
 function onBranchFilterChange(){
-  // Hook: used by Orders/Reports/Menu modules in later phases to scope data per branch
+  // Used by Orders/Reports/Dashboard modules to scope data per branch
+  updateDashboardStats();
 }
 
 /* ---------- Branches (Firestore: restaurants/{rid}/branches/{branchId}) ---------- */
@@ -2029,7 +2040,27 @@ function startOrdersListener(){
     ordersCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
     renderOrdersBoard();
     renderReports();
+    updateDashboardStats();
   }, err=> console.error('orders listener error', err));
+}
+
+// Fills in the "Orders Today" / "Revenue Today" dashboard cards from real order data —
+// these were previously static placeholder text ("0" / "pending activation") that never
+// updated, unrelated to any real licensing/activation state.
+function updateDashboardStats(){
+  const ordersEl = document.getElementById('statOrdersToday');
+  const revenueEl = document.getElementById('statRevenueToday');
+  if(!ordersEl || !revenueEl) return;
+  const branchId = document.getElementById('branchFilter') ? document.getElementById('branchFilter').value : 'all';
+  const todayKey = new Date().toISOString().slice(0,10);
+  const todaysOrders = ordersCache.filter(o=>{
+    if(!o.createdAt || !o.createdAt.toDate) return false;
+    if(branchId !== 'all' && o.branchId !== branchId) return false;
+    return o.createdAt.toDate().toISOString().slice(0,10) === todayKey;
+  });
+  const revenueToday = todaysOrders.reduce((sum,o)=> sum + Number(o.total||0), 0);
+  ordersEl.textContent = todaysOrders.length;
+  revenueEl.innerHTML = revenueToday.toFixed(2) + ' <span style="font-size:13px;">EGP</span>';
 }
 
 function renderOrdersBoard(){
@@ -3021,16 +3052,34 @@ function renderStockAvailabilityReport(){
 }
 
 function renderLowStockBanner(){
-  const banner = document.getElementById('lowStockBanner');
-  if(!banner) return;
   const lowItems = ingredientsCache.filter(isLowStock);
-  if(lowItems.length === 0){
-    banner.style.display = 'none';
-    return;
+
+  // Inventory tab banner (only present inside the Inventory module)
+  const banner = document.getElementById('lowStockBanner');
+  if(banner){
+    if(lowItems.length === 0){
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'flex';
+      const label = lowItems.length === 1 ? t('lowStockWarning') : t('lowStockWarningPlural');
+      document.getElementById('lowStockText').textContent = `${lowItems.length} ${label}`;
+    }
   }
-  banner.style.display = 'flex';
-  const label = lowItems.length === 1 ? t('lowStockWarning') : t('lowStockWarningPlural');
-  document.getElementById('lowStockText').textContent = `${lowItems.length} ${label}`;
+
+  // Dashboard summary — this is what surfaces low/zero stock even if the user never
+  // opens the Inventory tab. Previously nothing on the dashboard reflected stock at all.
+  const dashBanner = document.getElementById('dashboardLowStockBanner');
+  const dashCount = document.getElementById('statLowStockCount');
+  if(dashBanner){
+    if(lowItems.length === 0){
+      dashBanner.style.display = 'none';
+    } else {
+      dashBanner.style.display = 'flex';
+      const label = lowItems.length === 1 ? t('lowStockWarning') : t('lowStockWarningPlural');
+      document.getElementById('dashboardLowStockText').textContent = `${lowItems.length} ${label} — ${t('clickToReview')}`;
+    }
+  }
+  if(dashCount) dashCount.textContent = lowItems.length;
 }
 
 function openIngredientModal(ingredientId){
