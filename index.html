@@ -160,6 +160,26 @@
   .product-tile-qtybadge{position:absolute; top:6px; inset-inline-end:6px; background:var(--primary); color:#fff; font-size:12px; font-weight:700; min-width:22px; height:22px; border-radius:11px; display:flex; align-items:center; justify-content:center; padding:0 6px; box-shadow:0 1px 4px rgba(0,0,0,.25);}
   .product-tile-minus{position:absolute; bottom:6px; inset-inline-start:6px; width:26px; height:26px; border-radius:8px; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; z-index:2;}
   .delivery-platform-badge{display:inline-block; background:#eef2ff; color:#4338ca; font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px; width:fit-content;}
+
+  /* ===================== Public Customer Menu ===================== */
+  .pm-header{background:var(--primary-dark, #14532d); color:#fff; padding:28px 20px 22px; text-align:center;}
+  .pm-header h1{font-size:22px; margin:0 0 4px;}
+  .pm-header .pm-branch{font-size:13px; opacity:.85;}
+  .pm-cat-nav{display:flex; gap:8px; overflow-x:auto; padding:10px 14px; position:sticky; top:0; background:#fff; border-bottom:1px solid var(--border); z-index:5; -webkit-overflow-scrolling:touch;}
+  .pm-cat-nav button{flex:none; padding:7px 16px; border-radius:20px; border:1px solid var(--border); background:#fff; font-size:13px; white-space:nowrap; cursor:pointer;}
+  .pm-cat-nav button.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+  .pm-body{max-width:640px; margin:0 auto; padding:16px;}
+  .pm-cat-title{font-size:17px; font-weight:700; margin:22px 0 12px;}
+  .pm-cat-title:first-child{margin-top:4px;}
+  .pm-item{display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--border);}
+  .pm-item-img{width:76px; height:76px; min-width:76px; border-radius:10px; background:#f0f2f3 center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-size:26px; color:#c9d0d3;}
+  .pm-item-info{flex:1; min-width:0;}
+  .pm-item-name{font-weight:600; font-size:14.5px;}
+  .pm-item-cal{font-size:11px; color:#c2410c; margin-top:2px;}
+  .pm-item-price{font-weight:700; color:var(--primary); font-size:14px; margin-top:4px;}
+  .pm-item.unavailable{opacity:.5;}
+  .pm-item.unavailable .pm-item-price::after{content:" — " attr(data-unavail); font-size:11px; color:var(--danger); font-weight:400;}
+  .pm-empty, .pm-error{text-align:center; padding:60px 20px; color:var(--muted);}
   .picker-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px; gap:10px;}
   .picker-row:last-child{border-bottom:none;}
   .picker-row .p-name{flex:1;}
@@ -259,6 +279,11 @@
 </style>
 </head>
 <body>
+
+<!-- ===================== PUBLIC CUSTOMER MENU (no login required) =====================
+     Shown instead of the staff app when the page is opened with ?menu=<restaurantId>
+     in the URL — this is what the table QR code points to. Populated entirely by JS. -->
+<div id="publicMenuView" style="display:none;"></div>
 
 <div class="lang-switch"><button id="langToggleBtn" onclick="toggleLang()">EN</button></div>
 
@@ -881,6 +906,29 @@
 
     <div id="module-settings" class="module-content" style="display:none;">
       <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="menuQrTitle">قائمة العميل (رابط + QR)</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="menuQrDesc">رمز QR يفتح قائمة عرض للعميل (بدون تسجيل دخول) — اطبعه وحطّه على ترابيزة، والعميل يصوره من موبايله فيشوف المنيو بالصور والأسعار والسعرات.</p>
+        <div class="field">
+          <label data-i18n="branchForQr">الفرع (اختياري — اتركه فارغًا لقائمة كل الفروع)</label>
+          <select id="menuQrBranchSelect" onchange="generateMenuQr()"></select>
+        </div>
+        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; margin-top:10px;">
+          <div id="menuQrCodeWrap" style="background:#fff; padding:10px; border:1px solid var(--border); border-radius:10px; width:220px; height:220px; display:flex; align-items:center; justify-content:center;"></div>
+          <div style="flex:1; min-width:200px;">
+            <div style="font-size:12px; color:var(--muted); margin-bottom:6px;" data-i18n="menuUrlLabel">رابط القائمة:</div>
+            <div id="menuQrUrlText" style="font-size:12px; word-break:break-all; background:var(--bg); padding:8px; border-radius:8px; margin-bottom:10px;"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-outline" onclick="copyMenuUrl()" data-i18n="copyLink">📋 نسخ الرابط</button>
+              <button class="btn" onclick="printMenuQrPage()" data-i18n="printQr">🖨️ طباعة QR</button>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--danger); margin-top:16px; padding-top:12px; border-top:1px solid var(--border);" data-i18n="menuQrRulesWarning">⚠️ مهم: القائمة دي هتشتغل بس بعد ما تعدّل صلاحيات القراءة (Firestore Rules) في Firebase Console عشان تسمح لأي حد يشوف المنتجات والتصنيفات بدون تسجيل دخول. اسأل عن الكود المطلوب لو محتاج.</p>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
         <div class="panel-head">
           <h3 data-i18n="settingsBackupTitle">نسخة احتياطية</h3>
         </div>
@@ -1516,6 +1564,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- Firebase SDK scripts moved here (right before the app script, instead of <head>) so the
      browser can parse and paint the login screen immediately instead of blocking page render
      while these download — this is what caused the app to look "frozen"/blank on slower
@@ -1756,7 +1805,15 @@ const translations = {
     noDriverAssigned:"لم يتم تعيين سائق", assignDriver:"تعيين سائق", changeDriver:"تغيير السائق",
     markOutForDelivery:"بدأ التوصيل",
     calories:"السعرات الحرارية (اختياري)", kcal:"سعرة",
-    categoriesWillBeAdded:"تصنيف سيتم إضافته", duplicatesSkipped:"تم تجاهلها لأنها مكررة"
+    categoriesWillBeAdded:"تصنيف سيتم إضافته", duplicatesSkipped:"تم تجاهلها لأنها مكررة",
+    menuQrTitle:"قائمة العميل (رابط + QR)",
+    menuQrDesc:"رمز QR يفتح قائمة عرض للعميل (بدون تسجيل دخول) — اطبعه وحطّه على ترابيزة، والعميل يصوره من موبايله فيشوف المنيو بالصور والأسعار والسعرات.",
+    branchForQr:"الفرع (اختياري — اتركه فارغًا لقائمة كل الفروع)",
+    menuUrlLabel:"رابط القائمة:", copyLink:"📋 نسخ الرابط", printQr:"🖨️ طباعة QR",
+    menuQrRulesWarning:"⚠️ مهم: القائمة دي هتشتغل بس بعد ما تعدّل صلاحيات القراءة (Firestore Rules) في Firebase Console عشان تسمح لأي حد يشوف المنتجات والتصنيفات بدون تسجيل دخول. اسأل عن الكود المطلوب لو محتاج.",
+    linkCopied:"تم نسخ الرابط", loadingMenu:"جاري تحميل القائمة...",
+    menuNotAvailable:"القائمة غير متاحة حاليًا", otherItems:"أصناف أخرى", ourMenu:"قائمتنا",
+    scanMenuQr:"امسح الكود لعرض المنيو"
   },
   en: {
     loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
@@ -1920,7 +1977,15 @@ const translations = {
     noDriverAssigned:"No driver assigned", assignDriver:"Assign Driver", changeDriver:"Change Driver",
     markOutForDelivery:"Out for Delivery",
     calories:"Calories (optional)", kcal:"kcal",
-    categoriesWillBeAdded:"categories will be added", duplicatesSkipped:"skipped as duplicates"
+    categoriesWillBeAdded:"categories will be added", duplicatesSkipped:"skipped as duplicates",
+    menuQrTitle:"Customer Menu (Link + QR)",
+    menuQrDesc:"A QR code that opens a read-only menu for customers (no login needed) — print it and place it on a table; customers scan it with their phone to see the menu with photos, prices, and calories.",
+    branchForQr:"Branch (optional — leave empty for an all-branches menu)",
+    menuUrlLabel:"Menu link:", copyLink:"📋 Copy Link", printQr:"🖨️ Print QR",
+    menuQrRulesWarning:"⚠️ Important: this menu only works after you update Firestore Rules in the Firebase Console to allow public read access to products and categories without login. Ask for the exact rules snippet if you need it.",
+    linkCopied:"Link copied", loadingMenu:"Loading menu...",
+    menuNotAvailable:"Menu not available right now", otherItems:"Other Items", ourMenu:"Our Menu",
+    scanMenuQr:"Scan the code to view the menu"
   }
 };
 
@@ -1995,7 +2060,16 @@ function doLogout(){
   auth.signOut();
 }
 
-auth.onAuthStateChanged(async (user)=>{
+// If the page was opened via a table QR code (?menu=<restaurantId>&branch=<branchId>),
+// show the public read-only customer menu instead of the staff login/app — no
+// authentication involved, so this works for any customer scanning the code.
+const publicMenuParams = new URLSearchParams(window.location.search);
+const publicMenuRestaurantId = publicMenuParams.get('menu');
+
+if(publicMenuRestaurantId){
+  renderPublicMenu(publicMenuRestaurantId, publicMenuParams.get('branch'));
+} else {
+  auth.onAuthStateChanged(async (user)=>{
   if(user){
     currentUser = user;
     // Each restaurant owner document is keyed by their UID at /restaurants/{uid}
@@ -2025,7 +2099,8 @@ auth.onAuthStateChanged(async (user)=>{
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('appShell').classList.remove('active');
   }
-});
+  });
+}
 
 /* ---------- Navigation ---------- */
 function showModule(name){
@@ -2037,6 +2112,7 @@ function showModule(name){
   if(name === 'dashboard') updateDashboardStats();
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
+  if(name === 'settings') renderMenuQrSection();
 }
 
 function onBranchFilterChange(){
@@ -5187,6 +5263,156 @@ async function clearAllData(){
     console.error('clearAllData error', e);
     showToast(t('clearFailed') + ': ' + e.message);
   }
+}
+
+/* ---------- Public Customer Menu (?menu=<restaurantId>&branch=<branchId>) ----------
+   Fully anonymous, read-only view — no Firebase Auth involved. Requires Firestore
+   security rules to allow public read access to the 'categories' and 'products'
+   subcollections (and optionally 'branches' for the branch name); see the in-app
+   "QR وربط قائمة العميل" panel for the exact rules snippet needed. */
+async function renderPublicMenu(restaurantId, branchId){
+  document.getElementById('loginScreen').style.display = 'none';
+  const appShellEl = document.getElementById('appShell');
+  if(appShellEl) appShellEl.style.display = 'none';
+  const view = document.getElementById('publicMenuView');
+  view.style.display = 'block';
+  view.innerHTML = `<div class="pm-error">${t('loadingMenu')}</div>`;
+
+  try{
+    const rDoc = db.collection('restaurants').doc(restaurantId);
+    const [categoriesSnap, productsSnap, branchDoc] = await Promise.all([
+      rDoc.collection('categories').orderBy('createdAt','asc').get(),
+      rDoc.collection('products').get(),
+      branchId ? rDoc.collection('branches').doc(branchId).get() : Promise.resolve(null)
+    ]);
+
+    const categories = categoriesSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    let products = productsSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    const branchName = (branchDoc && branchDoc.exists) ? (branchDoc.data().name || '') : '';
+
+    if(products.length === 0){
+      view.innerHTML = `<div class="pm-error">${t('menuNotAvailable')}</div>`;
+      return;
+    }
+
+    // Group products by category, preserving category creation order; anything with no
+    // matching category (or no categoryId) falls into a catch-all "other" bucket.
+    const productsByCategory = {};
+    categories.forEach(c=> productsByCategory[c.id] = []);
+    const uncategorized = [];
+    products.forEach(p=>{
+      if(p.categoryId && productsByCategory[p.categoryId]) productsByCategory[p.categoryId].push(p);
+      else uncategorized.push(p);
+    });
+
+    const navHtml = categories
+      .filter(c=> (productsByCategory[c.id]||[]).length > 0)
+      .map((c,i)=> `<button class="pm-cat-nav-btn ${i===0?'active':''}" onclick="scrollToPmCategory('${c.id}')">${escapeHtml(currentLang==='ar' ? (c.name_ar||c.name_en) : (c.name_en||c.name_ar))}</button>`)
+      .join('') + (uncategorized.length > 0 ? `<button class="pm-cat-nav-btn" onclick="scrollToPmCategory('uncategorized')">${t('otherItems')}</button>` : '');
+
+    const sectionHtml = (catId, catName, items)=>{
+      if(items.length === 0) return '';
+      const rows = items.map(p=>{
+        const name = currentLang==='ar' ? (p.name_ar||p.name_en) : (p.name_en||p.name_ar);
+        const isAvailable = p.available !== false;
+        const thumbStyle = p.imageUrl ? `background-image:url('${p.imageUrl}')` : '';
+        const thumbContent = p.imageUrl ? '' : '🍽️';
+        return `<div class="pm-item ${isAvailable?'':'unavailable'}">
+          <div class="pm-item-img" style="${thumbStyle}">${thumbContent}</div>
+          <div class="pm-item-info">
+            <div class="pm-item-name">${escapeHtml(name)}</div>
+            ${(p.calories !== undefined && p.calories !== null) ? `<div class="pm-item-cal">🔥 ${p.calories} ${t('kcal')}</div>` : ''}
+            <div class="pm-item-price" ${isAvailable?'':`data-unavail="${t('unavailable')}"`}>${Number(p.price||0).toFixed(2)}</div>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div id="pmcat-${catId}"><div class="pm-cat-title">${escapeHtml(catName)}</div>${rows}</div>`;
+    };
+
+    const bodyHtml = categories.map(c=> sectionHtml(c.id, currentLang==='ar' ? (c.name_ar||c.name_en) : (c.name_en||c.name_ar), productsByCategory[c.id]||[])).join('')
+      + sectionHtml('uncategorized', t('otherItems'), uncategorized);
+
+    view.innerHTML = `
+      <div class="pm-header">
+        <h1>🍽️ ${t('ourMenu')}</h1>
+        ${branchName ? `<div class="pm-branch">${escapeHtml(branchName)}</div>` : ''}
+      </div>
+      <div class="pm-cat-nav">${navHtml}</div>
+      <div class="pm-body">${bodyHtml}</div>
+    `;
+  }catch(e){
+    console.error('renderPublicMenu error', e);
+    view.innerHTML = `<div class="pm-error">${t('menuNotAvailable')}</div>`;
+  }
+}
+
+function scrollToPmCategory(catId){
+  const el = document.getElementById('pmcat-'+catId);
+  if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  document.querySelectorAll('.pm-cat-nav-btn').forEach(b=> b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+/* ---------- QR Code / Menu Link generator (Settings panel) ----------
+   Generates a QR code (client-side, via qrcode.js — no third-party API calls) that
+   points to this same file with ?menu=<restaurantId>&branch=<branchId>, plus a
+   printable table-tent page for placing on tables. */
+function getPublicMenuUrl(branchId){
+  const base = window.location.origin + window.location.pathname;
+  return branchId ? `${base}?menu=${currentRestaurantId}&branch=${branchId}` : `${base}?menu=${currentRestaurantId}`;
+}
+
+function renderMenuQrSection(){
+  const wrap = document.getElementById('menuQrBranchSelect');
+  if(!wrap) return;
+  wrap.innerHTML = `<option value="">${t('allBranches')}</option>` +
+    branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  generateMenuQr();
+}
+
+function generateMenuQr(){
+  const branchId = document.getElementById('menuQrBranchSelect').value;
+  const url = getPublicMenuUrl(branchId);
+  document.getElementById('menuQrUrlText').textContent = url;
+
+  const qrContainer = document.getElementById('menuQrCodeWrap');
+  qrContainer.innerHTML = '';
+  // eslint-disable-next-line no-undef
+  new QRCode(qrContainer, { text:url, width:200, height:200, correctLevel: QRCode.CorrectLevel.M });
+}
+
+function copyMenuUrl(){
+  const url = document.getElementById('menuQrUrlText').textContent;
+  navigator.clipboard.writeText(url).then(()=> showToast(t('linkCopied'))).catch(()=> showToast(url));
+}
+
+function printMenuQrPage(){
+  const branchSel = document.getElementById('menuQrBranchSelect');
+  const branchName = branchSel.value ? branchSel.options[branchSel.selectedIndex].textContent : '';
+  const qrImg = document.querySelector('#menuQrCodeWrap img');
+  if(!qrImg){ showToast(t('nothingToExport')); return; }
+
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><meta charset="UTF-8"><title>${t('scanMenuQr')}</title>
+    <style>
+      body{font-family:Arial, sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0;}
+      .card{text-align:center; border:2px solid #14532d; border-radius:16px; padding:40px 50px;}
+      h2{margin:0 0 4px; color:#14532d;}
+      p{color:#555; margin:4px 0 20px;}
+      img{width:220px; height:220px;}
+      .hint{margin-top:16px; font-size:14px; color:#333;}
+    </style>
+  </head><body>
+    <div class="card">
+      <h2>🍽️ ${escapeHtml(t('ourMenu'))}</h2>
+      ${branchName ? `<p>${escapeHtml(branchName)}</p>` : ''}
+      <img src="${qrImg.src}">
+      <div class="hint">${escapeHtml(t('scanMenuQr'))}</div>
+    </div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 300);
 }
 
 /* init */
