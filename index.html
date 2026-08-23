@@ -2674,10 +2674,16 @@ function downloadProductImportTemplate(){
   XLSX.writeFile(wb, 'product-import-template.xlsx');
 }
 
+// Normalizes a header for matching: lowercases, strips parenthetical suffixes like
+// "(EGP)" or "(Mins)", and trims whitespace — so "Base Price (EGP)" matches "Base Price".
+function normalizeHeaderKey(h){
+  return String(h||'').toLowerCase().replace(/\(.*?\)/g, '').trim();
+}
+
 function getImportField(row, variants){
   const keys = Object.keys(row);
   for(const v of variants){
-    const found = keys.find(k=> k.trim().toLowerCase() === v.trim().toLowerCase());
+    const found = keys.find(k=> normalizeHeaderKey(k) === normalizeHeaderKey(v));
     if(found && String(row[found]).trim() !== '') return String(row[found]).trim();
   }
   return '';
@@ -2686,7 +2692,7 @@ function getImportField(row, variants){
 function parseImportAvailable(v){
   if(v === '') return true;
   const s = v.trim().toLowerCase();
-  return !['لا','no','false','0'].includes(s);
+  return !['لا','no','false','0','unavailable','out of stock','inactive'].includes(s);
 }
 
 function handleProductImportFile(event){
@@ -2705,11 +2711,12 @@ function handleProductImportFile(event){
       pendingProductImportErrors = [];
 
       rows.forEach((row, idx)=>{
-        const name_ar = getImportField(row, ['اسم المنتج','الاسم','Name','Product Name']);
-        const name_en = getImportField(row, ['الاسم بالإنجليزي','English Name','Name (English)']);
-        const priceRaw = getImportField(row, ['السعر','Price']);
-        const categoryName = getImportField(row, ['التصنيف','Category']);
-        const availableRaw = getImportField(row, ['متاح','Available']);
+        const name_ar = getImportField(row, ['اسم المنتج','الاسم','Name','Product Name','Name AR','Name Arabic']);
+        const name_en = getImportField(row, ['الاسم بالإنجليزي','English Name','Name (English)','Name EN']);
+        const priceRaw = getImportField(row, ['السعر','Price','Base Price','Base Price EGP','Item Price']);
+        const categoryName = getImportField(row, ['التصنيف','Category','Category AR','Category Arabic']);
+        const categoryNameEn = getImportField(row, ['Category EN','Category English']);
+        const availableRaw = getImportField(row, ['متاح','Available','Status']);
         const caloriesRaw = getImportField(row, ['السعرات الحرارية','السعرات','Calories','Kcal']);
 
         const price = parseFloat(priceRaw);
@@ -2725,6 +2732,7 @@ function handleProductImportFile(event){
         pendingProductImportRows.push({
           name_ar, name_en, price, calories,
           categoryName: categoryName || '',
+          categoryNameEn: categoryNameEn || '',
           available: parseImportAvailable(availableRaw)
         });
       });
@@ -2788,7 +2796,7 @@ async function commitProductImport(){
       if(!row.categoryName) continue;
       const key = row.categoryName.trim().toLowerCase();
       if(!categoryNameToId[key]){
-        const newCat = await categoriesCol().add({ name_ar: row.categoryName, name_en:'', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        const newCat = await categoriesCol().add({ name_ar: row.categoryName, name_en: row.categoryNameEn || '', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
         categoryNameToId[key] = newCat.id;
       }
     }
@@ -2858,8 +2866,8 @@ function handleCategoryImportFile(event){
       pendingCategoryImportErrors = [];
 
       rows.forEach((row, idx)=>{
-        const name_ar = getImportField(row, ['الاسم (عربي)','اسم القسم','الاسم','Name (Arabic)','Name']);
-        const name_en = getImportField(row, ['الاسم (إنجليزي)','English Name','Name (English)']);
+        const name_ar = getImportField(row, ['الاسم (عربي)','اسم القسم','الاسم','Name (Arabic)','Name','Name AR','Category AR','Category']);
+        const name_en = getImportField(row, ['الاسم (إنجليزي)','English Name','Name (English)','Name EN','Category EN']);
 
         if(!name_ar && !name_en){
           pendingCategoryImportErrors.push(`${t('importRow')} ${idx+2}: ${t('importErrorNoName')}`);
