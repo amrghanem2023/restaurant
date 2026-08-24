@@ -324,6 +324,7 @@
     </div>
     <div class="nav-item" data-module="orders" onclick="showModule('orders')">
       <span class="nav-icon">🧾</span><span data-i18n="nav_orders">الطلبات</span>
+      <span id="pendingPaymentNavBadge" style="display:none; background:var(--danger,#dc2626); color:#fff; font-size:10px; font-weight:700; border-radius:10px; padding:1px 7px; margin-inline-start:6px;">0</span>
     </div>
     <div class="nav-item" data-module="staff" onclick="showModule('staff')">
       <span class="nav-icon">👥</span><span data-i18n="nav_staff">الموظفين والصلاحيات</span>
@@ -395,7 +396,8 @@
       </div>
       <div class="panel">
         <div class="panel-head"><h3 data-i18n="recentActivity">آخر النشاطات</h3></div>
-        <div class="empty-state">
+        <div id="activityLogList" style="display:none; flex-direction:column; gap:10px;"></div>
+        <div class="empty-state" id="activityLogEmpty">
           <div class="icon">📭</div>
           <p data-i18n="noActivityYet">لا يوجد نشاط بعد — ابدأ بإضافة فرع أو منتج</p>
         </div>
@@ -1036,6 +1038,52 @@
           </div>
         </div>
         <p style="font-size:12px; color:var(--danger); margin-top:16px; padding-top:12px; border-top:1px solid var(--border);" data-i18n="menuQrRulesWarning">⚠️ مهم: القائمة دي هتشتغل بس بعد ما تعدّل صلاحيات القراءة (Firestore Rules) في Firebase Console عشان تسمح لأي حد يشوف المنتجات والتصنيفات بدون تسجيل دخول. اسأل عن الكود المطلوب لو محتاج.</p>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <div class="panel-head">
+          <h3 data-i18n="orderPageQrTitle">صفحة طلب العميل أونلاين (رابط + QR)</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="orderPageQrDesc">رابط منفصل يقدر العميل يطلب منه ويدفع (تحويل بنكي أو عند الاستلام) — مختلف عن رابط عرض المنيو بس.</p>
+        <div class="field">
+          <label data-i18n="branchForQr">الفرع (اختياري — اتركه فارغًا لقائمة كل الفروع)</label>
+          <select id="orderPageQrBranchSelect" onchange="generateOrderPageQr()"></select>
+        </div>
+        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; margin-top:10px;">
+          <div id="orderPageQrCodeWrap" style="background:#fff; padding:10px; border:1px solid var(--border); border-radius:10px; width:220px; height:220px; display:flex; align-items:center; justify-content:center;"></div>
+          <div style="flex:1; min-width:200px;">
+            <div style="font-size:12px; color:var(--muted); margin-bottom:6px;" data-i18n="menuUrlLabel">رابط القائمة:</div>
+            <div id="orderPageQrUrlText" style="font-size:12px; word-break:break-all; background:var(--bg); padding:8px; border-radius:8px; margin-bottom:10px;"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-outline" onclick="copyOrderPageUrl()" data-i18n="copyLink">📋 نسخ الرابط</button>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--danger); margin-top:16px; padding-top:12px; border-top:1px solid var(--border);" data-i18n="orderPageRulesWarning">⚠️ مهم: صفحة الطلب دي محتاجة تعديل صلاحيات Firestore عشان تسمح بالقراءة العامة لـ categories وproducts وdeliveryZones وrestaurants/{id}/publicSettings/info، وتسمح بالإنشاء (create فقط) العام في orders. اسأل عن الكود المطلوب لو محتاج.</p>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <div class="panel-head">
+          <h3 data-i18n="paymentSettingsTitle">بيانات الدفع والإشعارات</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="paymentSettingsDesc">البيانات دي بتظهر للعميل في صفحة الطلب أونلاين وقت اختيار التحويل البنكي، وبتُستخدم لإرسال إشعارات واتساب للمطبخ والدليفري.</p>
+        <div class="field">
+          <label data-i18n="bankAccountName">اسم صاحب الحساب البنكي</label>
+          <input type="text" id="settingsBankAccountName">
+        </div>
+        <div class="field">
+          <label data-i18n="bankAccountNumber">رقم الحساب</label>
+          <input type="text" id="settingsBankAccountNumber">
+        </div>
+        <div class="field">
+          <label data-i18n="bankIBAN">رقم الآيبان (IBAN)</label>
+          <input type="text" id="settingsBankIBAN">
+        </div>
+        <div class="field">
+          <label data-i18n="kitchenWhatsapp">رقم واتساب المطبخ (لإشعارات الطلبات الجديدة)</label>
+          <input type="text" id="settingsKitchenWhatsapp" placeholder="01xxxxxxxxx">
+        </div>
+        <button class="btn" onclick="savePublicSettings()" data-i18n="saveSettings">💾 حفظ الإعدادات</button>
       </div>
 
       <div class="panel" style="margin-top:20px;">
@@ -1835,7 +1883,7 @@ let deliveryZonesCache = [];
 let driversCache = [];
 let editingDeliveryZoneId = null;
 let editingDriverId = null;
-const ORDER_STATUSES = ['pending','preparing','ready','out_for_delivery','delivered','cancelled'];
+const ORDER_STATUSES = ['pending_payment','pending','preparing','ready','out_for_delivery','delivered','cancelled'];
 
 let staffCache = [];
 let editingStaffId = null;
@@ -2030,6 +2078,18 @@ const translations = {
     branchForQr:"الفرع (اختياري — اتركه فارغًا لقائمة كل الفروع)",
     menuUrlLabel:"رابط القائمة:", copyLink:"📋 نسخ الرابط", printQr:"🖨️ طباعة QR",
     menuQrRulesWarning:"⚠️ مهم: القائمة دي هتشتغل بس بعد ما تعدّل صلاحيات القراءة (Firestore Rules) في Firebase Console عشان تسمح لأي حد يشوف المنتجات والتصنيفات بدون تسجيل دخول. اسأل عن الكود المطلوب لو محتاج.",
+    orderPageQrTitle:"صفحة طلب العميل أونلاين (رابط + QR)",
+    orderPageQrDesc:"رابط منفصل يقدر العميل يطلب منه ويدفع (تحويل بنكي أو عند الاستلام) — مختلف عن رابط عرض المنيو بس.",
+    orderPageRulesWarning:"⚠️ مهم: صفحة الطلب دي محتاجة تعديل صلاحيات Firestore عشان تسمح بالقراءة العامة لـ categories وproducts وdeliveryZones وrestaurants/{id}/publicSettings/info، وتسمح بالإنشاء (create فقط) العام في orders. اسأل عن الكود المطلوب لو محتاج.",
+    paymentSettingsTitle:"بيانات الدفع والإشعارات",
+    paymentSettingsDesc:"البيانات دي بتظهر للعميل في صفحة الطلب أونلاين وقت اختيار التحويل البنكي، وبتُستخدم لإرسال إشعارات واتساب للمطبخ والدليفري.",
+    bankAccountName:"اسم صاحب الحساب البنكي", bankAccountNumber:"رقم الحساب", bankIBAN:"رقم الآيبان (IBAN)",
+    kitchenWhatsapp:"رقم واتساب المطبخ (لإشعارات الطلبات الجديدة)", saveSettings:"💾 حفظ الإعدادات",
+    settingsSaved:"تم حفظ الإعدادات",
+    status_pending_payment:"بانتظار تأكيد الدفع",
+    newOnlineOrderToast:"🆕 طلب أونلاين جديد وصل!",
+    confirmTransfer:"✅ تأكيد التحويل", rejectOrder:"❌ رفض الطلب",
+    viewReceipt:"عرض إيصال التحويل", paymentBankTransfer:"تحويل بنكي", paymentCod:"عند الاستلام",
     linkCopied:"تم نسخ الرابط", loadingMenu:"جاري تحميل القائمة...",
     menuNotAvailable:"القائمة غير متاحة حاليًا", otherItems:"أصناف أخرى", ourMenu:"قائمتنا",
     scanMenuQr:"امسح الكود لعرض المنيو",
@@ -2234,6 +2294,18 @@ const translations = {
     branchForQr:"Branch (optional — leave empty for an all-branches menu)",
     menuUrlLabel:"Menu link:", copyLink:"📋 Copy Link", printQr:"🖨️ Print QR",
     menuQrRulesWarning:"⚠️ Important: this menu only works after you update Firestore Rules in the Firebase Console to allow public read access to products and categories without login. Ask for the exact rules snippet if you need it.",
+    orderPageQrTitle:"Online Customer Ordering Page (Link + QR)",
+    orderPageQrDesc:"A separate link customers can order and pay from (bank transfer or cash on delivery) — different from the read-only menu link.",
+    orderPageRulesWarning:"⚠️ Important: this ordering page needs Firestore Rules updates to allow public read on categories, products, deliveryZones, and restaurants/{id}/publicSettings/info, plus public create-only access on orders. Ask for the exact rules snippet if you need it.",
+    paymentSettingsTitle:"Payment & Notification Settings",
+    paymentSettingsDesc:"This info is shown to customers on the online order page when they choose bank transfer, and is used to send WhatsApp notifications to the kitchen and drivers.",
+    bankAccountName:"Bank Account Holder Name", bankAccountNumber:"Account Number", bankIBAN:"IBAN",
+    kitchenWhatsapp:"Kitchen WhatsApp Number (for new order alerts)", saveSettings:"💾 Save Settings",
+    settingsSaved:"Settings saved",
+    status_pending_payment:"Awaiting Payment Confirmation",
+    newOnlineOrderToast:"🆕 New online order received!",
+    confirmTransfer:"✅ Confirm Transfer", rejectOrder:"❌ Reject Order",
+    viewReceipt:"View Transfer Receipt", paymentBankTransfer:"Bank Transfer", paymentCod:"Cash on Delivery",
     linkCopied:"Link copied", loadingMenu:"Loading menu...",
     menuNotAvailable:"Menu not available right now", otherItems:"Other Items", ourMenu:"Our Menu",
     scanMenuQr:"Scan the code to view the menu",
@@ -2394,10 +2466,10 @@ function showModule(name){
   document.querySelectorAll('.nav-item').forEach(n=> n.classList.remove('active'));
   document.querySelector('.nav-item[data-module="'+name+'"]').classList.add('active');
   document.getElementById('moduleTitle').textContent = t('nav_'+name);
-  if(name === 'dashboard') updateDashboardStats();
+  if(name === 'dashboard'){ updateDashboardStats(); loadActivityLog(); }
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
-  if(name === 'settings') renderMenuQrSection();
+  if(name === 'settings'){ renderMenuQrSection(); renderOrderPageQrSection(); loadPublicSettingsForm(); }
   if(name === 'customers') renderCustomersTable();
   if(name === 'shifts'){ populateShiftBranchSelect(); renderCurrentShiftStatus(); renderShiftsHistoryTable(); }
 }
@@ -2508,6 +2580,7 @@ async function saveBranch(){
       await branchesCol().doc(editingBranchId).update({ name, city, phone, status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     } else {
       await branchesCol().add({ name, city, phone, status, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await logActivity('🏢', `تم إضافة فرع جديد: ${name}`, `New branch added: ${name}`);
     }
     closeBranchModal();
     showToast(t('branchSaved'));
@@ -3007,6 +3080,7 @@ async function saveProduct(){
       await productsCol().doc(editingProductId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     } else {
       await productsCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await logActivity('🍽️', `تم إضافة منتج جديد: ${name_ar}`, `New product added: ${name_en || name_ar}`);
     }
     closeProductModal();
     showToast(t('productSaved'));
@@ -3488,10 +3562,23 @@ function ordersCol(){
 function startOrdersListener(){
   if(ordersUnsubscribe) ordersUnsubscribe();
   ordersUnsubscribe = ordersCol().orderBy('createdAt','desc').onSnapshot(snap=>{
+    // Detect newly-arrived online orders (placed by customers via customer-order.html)
+    // to surface an immediate toast + activity log entry, since this is the one place
+    // staff need to notice fast — everything else in the app is staff-initiated already.
+    snap.docChanges().forEach(change=>{
+      if(change.type === 'added'){
+        const o = { id:change.doc.id, ...change.doc.data() };
+        if(o.source === 'customer_online' && o.status === 'pending_payment' && !ordersCache.find(x=> x.id === o.id)){
+          showToast(t('newOnlineOrderToast'));
+          logActivity('🆕', `طلب أونلاين جديد #${o.id.slice(0,6).toUpperCase()} بقيمة ${Number(o.total||0).toFixed(2)} جنيه`, `New online order #${o.id.slice(0,6).toUpperCase()} — ${Number(o.total||0).toFixed(2)} EGP`);
+        }
+      }
+    });
     ordersCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
     renderOrdersBoard();
     renderReports();
     updateDashboardStats();
+    updatePendingPaymentBadge();
     if(document.getElementById('module-customers') && document.getElementById('module-customers').style.display !== 'none'){
       renderCustomersTable();
     }
@@ -3515,6 +3602,14 @@ function updateDashboardStats(){
   const revenueToday = todaysOrders.reduce((sum,o)=> sum + Number(o.total||0), 0);
   ordersEl.textContent = todaysOrders.length;
   revenueEl.innerHTML = revenueToday.toFixed(2) + ' <span style="font-size:13px;">EGP</span>';
+}
+
+function updatePendingPaymentBadge(){
+  const badge = document.getElementById('pendingPaymentNavBadge');
+  if(!badge) return;
+  const count = ordersCache.filter(o=> o.status === 'pending_payment').length;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-block' : 'none';
 }
 
 function renderOrdersBoard(){
@@ -3562,7 +3657,10 @@ function renderOrderCard(o){
 
   let actionsHtml = '';
   let shortageHtml = '';
-  if(o.status === 'pending'){
+  if(o.status === 'pending_payment'){
+    actionsHtml = `<button class="primary-action" onclick="confirmOrderTransfer('${o.id}')">${t('confirmTransfer')}</button>
+      <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('rejectOrder')}</button>`;
+  } else if(o.status === 'pending'){
     actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','preparing')">${t('markPreparing')}</button>
       <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('markCancelled')}</button>`;
   } else if(o.status === 'preparing'){
@@ -3617,6 +3715,7 @@ function renderOrderCard(o){
     <div class="branch-tag">🏢 ${escapeHtml(branchName)}</div>
     <div class="items-summary">${itemsSummary}</div>
     ${o.couponCode ? `<div style="font-size:11px; color:var(--ok); margin-bottom:4px;">🏷️ ${escapeHtml(o.couponCode)}</div>` : ''}
+    ${o.paymentMethod === 'bank_transfer' && o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" style="font-size:11px; display:block; margin-bottom:4px;">🧾 ${t('viewReceipt')}</a>` : ''}
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
@@ -3649,6 +3748,13 @@ async function updateOrderStatus(orderId, newStatus){
     }
     await ordersCol().doc(orderId).update({ status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
 
+    // Whenever an order moves into "preparing" (whether it came from a staff-created
+    // pending order or an online order whose bank transfer was just confirmed), ping the
+    // kitchen on WhatsApp with a one-line order summary, if a kitchen number is set.
+    if(newStatus === 'preparing' && order){
+      notifyKitchenWhatsapp(order);
+    }
+
     // Deduct ingredient stock only once, at the moment an order becomes "ready" —
     // avoids reversing stock on cancellation since deduction hasn't happened yet for pending/preparing orders.
     if(newStatus === 'ready' && order && !order.stockDeducted){
@@ -3666,8 +3772,49 @@ async function updateOrderStatus(orderId, newStatus){
   }
 }
 
-// Quick "assign/change driver" action from an order card, without reopening the full
-// order form — used once an order is ready or already out for delivery.
+// "Confirm transfer" action on a pending_payment order card — moves it straight to
+// preparing (skipping the generic "pending" column, since payment is already the gate
+// for online orders) and logs it distinctly from a normal status change.
+async function confirmOrderTransfer(orderId){
+  await updateOrderStatus(orderId, 'preparing');
+  await logActivity('💳', 'تم تأكيد تحويل بنكي لطلب أونلاين', 'Bank transfer confirmed for an online order');
+}
+
+// Best-effort WhatsApp click-to-chat ping to the kitchen when an order starts being
+// prepared. Real automatic sending needs a paid WhatsApp Business API (e.g. Twilio,
+// 360dialog) with a server-side key — this opens a pre-filled wa.me chat instead, which
+// still needs one tap from whoever has that phone open to actually send.
+async function notifyKitchenWhatsapp(order){
+  try{
+    const settings = await getPublicSettingsCache();
+    if(!settings || !settings.kitchenWhatsapp) return;
+    const itemsText = (order.items||[]).map(it=> `${it.qty}× ${it.name}`).join('، ');
+    const msg = `طلب جديد #${order.id.slice(0,6).toUpperCase()}\n${itemsText}\nالإجمالي: ${Number(order.total||0).toFixed(2)} جنيه`;
+    openWhatsappChat(settings.kitchenWhatsapp, msg, 'kitchen_notify');
+  }catch(e){
+    console.error('notifyKitchenWhatsapp error', e);
+  }
+}
+
+// Same best-effort click-to-chat approach for the driver + customer once a driver is
+// assigned to a delivery order.
+function notifyDriverAndCustomerWhatsapp(order, driver){
+  try{
+    if(driver && driver.phone){
+      const itemsText = (order.items||[]).map(it=> `${it.qty}× ${it.name}`).join('، ');
+      const driverMsg = `طلب توصيل #${order.id.slice(0,6).toUpperCase()}\nالعميل: ${order.customerName||''} - ${order.customerPhone||''}\nالعنوان: ${order.deliveryAddress||''}\n${itemsText}\nالإجمالي: ${Number(order.total||0).toFixed(2)} جنيه`;
+      openWhatsappChat(driver.phone, driverMsg, 'driver_notify');
+    }
+    if(order.customerPhone){
+      const customerMsg = `طلبك #${order.id.slice(0,6).toUpperCase()} في الطريق وهيوصل خلال حوالي 30 دقيقة 🛵`;
+      setTimeout(()=> openWhatsappChat(order.customerPhone, customerMsg, 'delivery_notify'), 400);
+    }
+  }catch(e){
+    console.error('notifyDriverAndCustomerWhatsapp error', e);
+  }
+}
+
+
 let assigningDriverOrderId = null;
 function openAssignDriverModal(orderId){
   assigningDriverOrderId = orderId;
@@ -3691,6 +3838,12 @@ async function saveAssignedDriver(){
       driverId: driverId || null,
       driverName: driver ? driver.name : null
     });
+    // Only fire WhatsApp notifications when an actual driver was newly picked, not when
+    // clearing the assignment back to "unassigned".
+    if(driver){
+      const order = ordersCache.find(o=> o.id === assigningDriverOrderId);
+      if(order) notifyDriverAndCustomerWhatsapp(order, driver);
+    }
     showToast(t('driverAssigned'));
     closeAssignDriverModal();
   }catch(e){
@@ -4774,6 +4927,7 @@ async function saveOrder(){
       status: 'pending',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    await logActivity('🧾', `تم إنشاء طلب جديد بقيمة ${total.toFixed(2)} جنيه`, `New order created — ${total.toFixed(2)} EGP`);
     if(appliedCoupon){
       await couponsCol().doc(appliedCoupon.id).update({ usedCount: firebase.firestore.FieldValue.increment(1) });
       await loadCoupons();
@@ -4913,6 +5067,7 @@ async function saveStaff(){
       await staffCol().doc(editingStaffId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     } else {
       await staffCol().add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await logActivity('👤', `تم إضافة موظف جديد: ${name}`, `New staff member added: ${name}`);
     }
     closeStaffModal();
     showToast(t('staffSaved'));
@@ -5245,6 +5400,116 @@ function renderBranchRevenue(orders){
     <td>${r.count}</td>
     <td>${r.revenue.toFixed(2)}</td>
   </tr>`).join('');
+}
+
+/* ---------- Activity Log (Firestore: restaurants/{rid}/activityLog/{logId}) ----------
+   Powers the "Recent Activity" panel on the dashboard, which previously always showed
+   the static "no activity yet" empty state regardless of what actually happened. */
+let activityLogCache = [];
+
+function activityLogCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('activityLog');
+}
+
+// icon + text describe the event; call this right after any Firestore write we want
+// reflected on the dashboard. Fails silently (console only) so a logging error never
+// blocks the actual save the user cares about.
+async function logActivity(icon, textAr, textEn){
+  try{
+    await activityLogCol().add({
+      icon, textAr, textEn,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){
+    console.error('logActivity error', e);
+  }
+}
+
+async function loadActivityLog(){
+  try{
+    const snap = await activityLogCol().orderBy('createdAt','desc').limit(10).get();
+    activityLogCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderActivityLog();
+  }catch(e){
+    console.error('loadActivityLog error', e);
+  }
+}
+
+function renderActivityLog(){
+  const list = document.getElementById('activityLogList');
+  const empty = document.getElementById('activityLogEmpty');
+  if(!list || !empty) return;
+
+  if(activityLogCache.length === 0){
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  list.style.display = 'flex';
+  empty.style.display = 'none';
+
+  list.innerHTML = activityLogCache.map(a=>{
+    const text = currentLang === 'ar' ? (a.textAr || a.textEn) : (a.textEn || a.textAr);
+    const timeLabel = a.createdAt && a.createdAt.toDate ? relativeTime(a.createdAt.toDate()) : '';
+    return `<div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border,#eee);">
+      <div style="font-size:18px;">${a.icon || '📌'}</div>
+      <div style="flex:1; font-size:13px;">${escapeHtml(text || '')}</div>
+      <div style="font-size:11px; color:var(--muted);">${timeLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- Public Settings (Firestore: restaurants/{rid}/publicSettings/info) ----------
+   Kept in a separate subdocument (not the main restaurants/{rid} doc) so the public
+   ordering page can be granted read access to just this document via Firestore rules,
+   without exposing anything else on the restaurant's own document. */
+function publicSettingsDoc(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('publicSettings').doc('info');
+}
+
+let publicSettingsCache = null;
+
+async function getPublicSettingsCache(){
+  if(publicSettingsCache) return publicSettingsCache;
+  try{
+    const doc = await publicSettingsDoc().get();
+    publicSettingsCache = doc.exists ? doc.data() : {};
+  }catch(e){
+    console.error('getPublicSettingsCache error', e);
+    publicSettingsCache = {};
+  }
+  return publicSettingsCache;
+}
+
+async function loadPublicSettingsForm(){
+  try{
+    const doc = await publicSettingsDoc().get();
+    const data = doc.exists ? doc.data() : {};
+    publicSettingsCache = data;
+    document.getElementById('settingsBankAccountName').value = data.bankAccountName || '';
+    document.getElementById('settingsBankAccountNumber').value = data.bankAccountNumber || '';
+    document.getElementById('settingsBankIBAN').value = data.bankIBAN || '';
+    document.getElementById('settingsKitchenWhatsapp').value = data.kitchenWhatsapp || '';
+  }catch(e){
+    console.error('loadPublicSettingsForm error', e);
+  }
+}
+
+async function savePublicSettings(){
+  const data = {
+    bankAccountName: document.getElementById('settingsBankAccountName').value.trim(),
+    bankAccountNumber: document.getElementById('settingsBankAccountNumber').value.trim(),
+    bankIBAN: document.getElementById('settingsBankIBAN').value.trim(),
+    kitchenWhatsapp: document.getElementById('settingsKitchenWhatsapp').value.trim()
+  };
+  try{
+    await publicSettingsDoc().set(data, { merge:true });
+    publicSettingsCache = data;
+    showToast(t('settingsSaved'));
+  }catch(e){
+    console.error('savePublicSettings error', e);
+    showToast(e.message);
+  }
 }
 
 /* ---------- Notifications (Firestore: restaurants/{rid}/notifications/{notificationId}) ---------- */
@@ -6367,6 +6632,38 @@ function scrollToPmCategory(catId){
 function getPublicMenuUrl(branchId){
   const base = window.location.origin + window.location.pathname;
   return branchId ? `${base}?menu=${currentRestaurantId}&branch=${branchId}` : `${base}?menu=${currentRestaurantId}`;
+}
+
+// Same ?menu=&branch= convention, but pointing at customer-order.html (the ordering
+// page) instead of this file (the read-only menu page). The two files must be deployed
+// side by side on the same host for this link to work.
+function getOrderPageUrl(branchId){
+  const base = window.location.origin + window.location.pathname.replace(/[^/]*$/, 'customer-order.html');
+  return branchId ? `${base}?menu=${currentRestaurantId}&branch=${branchId}` : `${base}?menu=${currentRestaurantId}`;
+}
+
+function renderOrderPageQrSection(){
+  const wrap = document.getElementById('orderPageQrBranchSelect');
+  if(!wrap) return;
+  wrap.innerHTML = `<option value="">${t('allBranches')}</option>` +
+    branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  generateOrderPageQr();
+}
+
+function generateOrderPageQr(){
+  const branchId = document.getElementById('orderPageQrBranchSelect').value;
+  const url = getOrderPageUrl(branchId);
+  document.getElementById('orderPageQrUrlText').textContent = url;
+
+  const qrContainer = document.getElementById('orderPageQrCodeWrap');
+  qrContainer.innerHTML = '';
+  // eslint-disable-next-line no-undef
+  new QRCode(qrContainer, { text:url, width:200, height:200, correctLevel: QRCode.CorrectLevel.M });
+}
+
+function copyOrderPageUrl(){
+  const url = document.getElementById('orderPageQrUrlText').textContent;
+  navigator.clipboard.writeText(url).then(()=> showToast(t('linkCopied'))).catch(()=> showToast(url));
 }
 
 function renderMenuQrSection(){

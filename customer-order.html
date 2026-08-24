@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>اطلب أونلاين</title>
+<style>
+  :root{
+    --primary:#0f766e; --primary-dark:#0d5f58; --bg:#f4f6f7; --card:#ffffff;
+    --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --danger:#dc2626; --warn:#d97706; --ok:#16a34a;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif; background:var(--bg); color:var(--text); margin:0; padding-bottom:80px;}
+  .hidden{display:none !important;}
+  .center-msg{text-align:center; padding:60px 20px; color:var(--muted);}
+
+  .pm-header{background:var(--primary-dark); color:#fff; padding:22px 16px 18px; text-align:center;}
+  .pm-header h1{font-size:20px; margin:0 0 4px;}
+  .pm-header .pm-branch{font-size:13px; opacity:.85;}
+
+  .pm-cat-nav{display:flex; gap:8px; overflow-x:auto; padding:10px 14px; position:sticky; top:0; background:#fff; border-bottom:1px solid var(--border); z-index:5; -webkit-overflow-scrolling:touch;}
+  .pm-cat-nav button{flex:none; padding:7px 16px; border-radius:20px; border:1px solid var(--border); background:#fff; font-size:13px; white-space:nowrap; cursor:pointer;}
+  .pm-cat-nav button.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+
+  .pm-body{max-width:640px; margin:0 auto; padding:16px;}
+  .pm-cat-title{font-size:17px; font-weight:700; margin:22px 0 12px;}
+  .pm-cat-title:first-child{margin-top:4px;}
+  .pm-item{display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); align-items:center;}
+  .pm-item-img{width:72px; height:72px; min-width:72px; border-radius:10px; background:#f0f2f3 center/cover no-repeat; display:flex; align-items:center; justify-content:center; font-size:24px; color:#c9d0d3;}
+  .pm-item-info{flex:1; min-width:0;}
+  .pm-item-name{font-weight:600; font-size:14px; margin-bottom:2px;}
+  .pm-item-cal{font-size:11px; color:var(--muted); margin-bottom:4px;}
+  .pm-item-price{font-weight:700; color:var(--primary-dark); font-size:14px;}
+  .pm-item.unavailable{opacity:.5;}
+  .pm-item.unavailable .add-btn, .pm-item.unavailable .qty-stepper{display:none;}
+
+  .add-btn{background:var(--primary); color:#fff; border:none; padding:8px 14px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .qty-stepper{display:flex; align-items:center; gap:8px; background:var(--bg); border-radius:20px; padding:4px 10px;}
+  .qty-stepper button{background:var(--primary); color:#fff; border:none; width:24px; height:24px; border-radius:50%; font-size:14px; cursor:pointer; line-height:1;}
+  .qty-stepper span{font-weight:700; min-width:16px; text-align:center; font-size:13px;}
+
+  .cart-bar{position:fixed; bottom:0; inset-inline:0; background:var(--primary); color:#fff; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 -2px 10px rgba(0,0,0,.15); z-index:20; cursor:pointer;}
+  .cart-bar .cb-left{font-size:13px;}
+  .cart-bar .cb-left b{font-size:15px;}
+  .cart-bar .cb-btn{background:#fff; color:var(--primary-dark); border:none; padding:9px 18px; border-radius:20px; font-weight:700; font-size:13px;}
+
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-end; justify-content:center; z-index:50;}
+  .sheet{background:#fff; width:100%; max-width:640px; max-height:92vh; overflow-y:auto; border-radius:16px 16px 0 0; padding:18px;}
+  .sheet-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .sheet-head h2{font-size:17px; margin:0;}
+  .close-btn{background:none; border:none; font-size:20px; cursor:pointer; color:var(--muted);}
+
+  .cart-line{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border);}
+  .cart-line .cl-name{flex:1; font-size:13px;}
+  .cart-line .cl-price{font-size:12px; color:var(--muted);}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:13px; margin-bottom:6px; color:var(--muted); font-weight:600;}
+  .field input, .field select, .field textarea{width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit;}
+  .field textarea{resize:vertical; min-height:60px;}
+
+  .totals-row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--muted);}
+  .totals-row.grand{font-size:16px; font-weight:700; color:var(--text); border-top:1px solid var(--border); margin-top:6px; padding-top:10px;}
+
+  .pay-options{display:flex; gap:10px; margin-bottom:10px;}
+  .pay-option{flex:1; border:2px solid var(--border); border-radius:10px; padding:12px; text-align:center; cursor:pointer; font-size:13px; font-weight:600;}
+  .pay-option.active{border-color:var(--primary); background:#f0fdfa; color:var(--primary-dark);}
+
+  .bank-box{background:var(--bg); border-radius:10px; padding:12px 14px; font-size:13px; margin-bottom:12px; line-height:1.9;}
+  .bank-box b{color:var(--primary-dark);}
+
+  .submit-btn{width:100%; background:var(--primary); color:#fff; border:none; padding:14px; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-top:6px;}
+  .submit-btn:disabled{opacity:.6; cursor:not-allowed;}
+
+  .confirm-box{text-align:center; padding:40px 20px;}
+  .confirm-box .icon{font-size:52px; margin-bottom:16px;}
+  .confirm-box h2{margin:0 0 8px;}
+  .confirm-box p{color:var(--muted); font-size:14px; line-height:1.7;}
+
+  .err-text{color:var(--danger); font-size:12px; margin-top:-8px; margin-bottom:10px; display:none;}
+</style>
+</head>
+<body>
+
+<div id="loadingView" class="center-msg">جاري تحميل القائمة...</div>
+<div id="errorView" class="center-msg hidden">القائمة غير متاحة حاليًا</div>
+
+<div id="menuApp" class="hidden">
+  <div class="pm-header">
+    <h1>🍽️ اطلب أونلاين</h1>
+    <div class="pm-branch" id="pmBranchName"></div>
+  </div>
+  <div class="pm-cat-nav" id="pmCatNav"></div>
+  <div class="pm-body" id="pmBody"></div>
+</div>
+
+<div class="cart-bar hidden" id="cartBar" onclick="openCartSheet()">
+  <div class="cb-left"><span id="cartBarCount">0</span> صنف &middot; <b id="cartBarTotal">0</b> جنيه</div>
+  <button class="cb-btn">عرض السلة 🛒</button>
+</div>
+
+<!-- Cart / Checkout sheet -->
+<div class="overlay hidden" id="cartOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>سلة الطلب</h2>
+      <button class="close-btn" onclick="closeCartSheet()">✕</button>
+    </div>
+
+    <div id="cartLinesWrap"></div>
+
+    <div class="field" style="margin-top:16px;">
+      <label>المنطقة (لحساب رسوم التوصيل)</label>
+      <select id="zoneSelect" onchange="onZoneChange()"></select>
+    </div>
+
+    <div class="totals-row"><span>الإجمالي الفرعي</span><span id="totalSubtotal">0.00</span></div>
+    <div class="totals-row"><span>رسوم التوصيل</span><span id="totalDelivery">0.00</span></div>
+    <div class="totals-row grand"><span>الإجمالي</span><span id="totalGrand">0.00</span></div>
+
+    <div id="deliveryEta" style="font-size:12px; color:var(--muted); margin:8px 0 4px;"></div>
+
+    <hr style="border:none; border-top:1px solid var(--border); margin:18px 0;">
+
+    <div class="field">
+      <label>الاسم</label>
+      <input type="text" id="custName" placeholder="اسمك">
+    </div>
+    <div class="field">
+      <label>رقم الموبايل</label>
+      <input type="tel" id="custPhone" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label>العنوان بالتفصيل</label>
+      <textarea id="custAddress" placeholder="اسم الشارع، رقم العمارة، الدور، علامة مميزة..."></textarea>
+    </div>
+    <div class="err-text" id="formErr">من فضلك املأ كل الحقول المطلوبة</div>
+
+    <div class="field">
+      <label>طريقة الدفع</label>
+      <div class="pay-options">
+        <div class="pay-option active" id="payCodOption" onclick="setPaymentMethod('cod')">💵 عند الاستلام</div>
+        <div class="pay-option" id="payBankOption" onclick="setPaymentMethod('bank_transfer')">🏦 تحويل بنكي</div>
+      </div>
+    </div>
+
+    <div id="bankTransferBox" class="hidden">
+      <div class="bank-box" id="bankDetailsText"></div>
+      <div class="field">
+        <label>صورة إيصال التحويل</label>
+        <input type="file" id="receiptFileInput" accept="image/*">
+      </div>
+    </div>
+
+    <button class="submit-btn" id="submitOrderBtn" onclick="submitCustomerOrder()">تأكيد الطلب</button>
+  </div>
+</div>
+
+<!-- Confirmation -->
+<div class="overlay hidden" id="confirmOverlay">
+  <div class="sheet">
+    <div class="confirm-box">
+      <div class="icon">✅</div>
+      <h2>تم استلام طلبك!</h2>
+      <p id="confirmText"></p>
+      <button class="submit-btn" style="margin-top:20px;" onclick="location.reload()">طلب جديد</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ---------------------------------------------------------------------------
+   Standalone customer ordering page. Opened via ?menu=<restaurantId>&branch=<branchId>
+   (the same convention as the read-only public menu). Fully anonymous — no Firebase
+   Auth. Needs Firestore rules that allow:
+     - public read on restaurants/{id}/categories, /products, /deliveryZones,
+       /branches, and /publicSettings/info
+     - public CREATE-ONLY on restaurants/{id}/orders (no read/update/delete)
+   See the rules snippet shared alongside this file.
+--------------------------------------------------------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyABB8IqmJGLDT8TbtZxK57KbPachPq3_wM",
+  authDomain: "restaurant-platform-b01a6.firebaseapp.com",
+  projectId: "restaurant-platform-b01a6",
+  storageBucket: "restaurant-platform-b01a6.firebasestorage.app",
+  messagingSenderId: "344618338704",
+  appId: "1:344618338704:web:6807d84be9e2007baccb15"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const params = new URLSearchParams(window.location.search);
+const restaurantId = params.get('menu');
+const branchIdParam = params.get('branch');
+
+let categories = [];
+let products = [];
+let deliveryZones = [];
+let publicSettings = {};
+let branchName = '';
+let cart = {}; // productId -> qty
+let paymentMethod = 'cod';
+
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function init(){
+  if(!restaurantId){
+    document.getElementById('loadingView').classList.add('hidden');
+    document.getElementById('errorView').classList.remove('hidden');
+    return;
+  }
+  try{
+    const rDoc = db.collection('restaurants').doc(restaurantId);
+    const [categoriesSnap, productsSnap, zonesSnap, settingsDoc, branchDoc] = await Promise.all([
+      rDoc.collection('categories').orderBy('createdAt','asc').get(),
+      rDoc.collection('products').get(),
+      rDoc.collection('deliveryZones').get(),
+      rDoc.collection('publicSettings').doc('info').get(),
+      branchIdParam ? rDoc.collection('branches').doc(branchIdParam).get() : Promise.resolve(null)
+    ]);
+
+    categories = categoriesSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    products = productsSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    deliveryZones = zonesSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    publicSettings = settingsDoc.exists ? settingsDoc.data() : {};
+    branchName = (branchDoc && branchDoc.exists) ? (branchDoc.data().name || '') : '';
+
+    if(products.length === 0){
+      document.getElementById('loadingView').classList.add('hidden');
+      document.getElementById('errorView').classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('loadingView').classList.add('hidden');
+    document.getElementById('menuApp').classList.remove('hidden');
+    document.getElementById('pmBranchName').textContent = branchName;
+
+    renderMenu();
+    populateZoneSelect();
+    renderBankBox();
+  }catch(e){
+    console.error('init error', e);
+    document.getElementById('loadingView').classList.add('hidden');
+    document.getElementById('errorView').classList.remove('hidden');
+  }
+}
+
+function renderMenu(){
+  const productsByCategory = {};
+  categories.forEach(c=> productsByCategory[c.id] = []);
+  const uncategorized = [];
+  products.forEach(p=>{
+    if(p.categoryId && productsByCategory[p.categoryId]) productsByCategory[p.categoryId].push(p);
+    else uncategorized.push(p);
+  });
+
+  const navHtml = categories
+    .filter(c=> (productsByCategory[c.id]||[]).length > 0)
+    .map((c,i)=> `<button class="pm-cat-nav-btn ${i===0?'active':''}" onclick="scrollToCat('${c.id}', this)">${escapeHtml(c.name_ar||c.name_en)}</button>`)
+    .join('') + (uncategorized.length > 0 ? `<button class="pm-cat-nav-btn" onclick="scrollToCat('uncategorized', this)">أصناف أخرى</button>` : '');
+  document.getElementById('pmCatNav').innerHTML = navHtml;
+
+  const sectionHtml = (catId, catName, items)=>{
+    if(items.length === 0) return '';
+    const rows = items.map(p=> itemRowHtml(p)).join('');
+    return `<div id="pmcat-${catId}"><div class="pm-cat-title">${escapeHtml(catName)}</div>${rows}</div>`;
+  };
+
+  const bodyHtml = categories.map(c=> sectionHtml(c.id, c.name_ar||c.name_en, productsByCategory[c.id]||[])).join('')
+    + sectionHtml('uncategorized', 'أصناف أخرى', uncategorized);
+  document.getElementById('pmBody').innerHTML = bodyHtml;
+}
+
+function itemRowHtml(p){
+  const isAvailable = p.available !== false;
+  const thumbStyle = p.imageUrl ? `background-image:url('${p.imageUrl}')` : '';
+  const thumbContent = p.imageUrl ? '' : '🍽️';
+  const qty = cart[p.id] || 0;
+  return `<div class="pm-item ${isAvailable?'':'unavailable'}" id="pmitem-${p.id}">
+    <div class="pm-item-img" style="${thumbStyle}">${thumbContent}</div>
+    <div class="pm-item-info">
+      <div class="pm-item-name">${escapeHtml(p.name_ar||p.name_en)}</div>
+      ${(p.calories!==undefined && p.calories!==null) ? `<div class="pm-item-cal">🔥 ${p.calories} سعرة</div>` : ''}
+      <div class="pm-item-price">${Number(p.price||0).toFixed(2)} ج.م${!isAvailable?' (غير متاح حاليًا)':''}</div>
+    </div>
+    ${qty > 0
+      ? `<div class="qty-stepper"><button onclick="changeQty('${p.id}',-1)">−</button><span>${qty}</span><button onclick="changeQty('${p.id}',1)">+</button></div>`
+      : `<button class="add-btn" onclick="changeQty('${p.id}',1)">+ اضافة</button>`}
+  </div>`;
+}
+
+function changeQty(productId, delta){
+  const newQty = Math.max(0, (cart[productId]||0) + delta);
+  if(newQty === 0) delete cart[productId];
+  else cart[productId] = newQty;
+
+  const el = document.getElementById('pmitem-'+productId);
+  const p = products.find(x=> x.id === productId);
+  if(el && p) el.outerHTML = itemRowHtml(p);
+
+  updateCartBar();
+  if(!document.getElementById('cartOverlay').classList.contains('hidden')) renderCartLines();
+}
+
+function cartItemsList(){
+  return Object.entries(cart).map(([pid,qty])=>{
+    const p = products.find(x=> x.id === pid);
+    if(!p) return null;
+    return { productId:pid, name:p.name_ar||p.name_en, price:p.price||0, qty };
+  }).filter(Boolean);
+}
+
+function cartSubtotal(){
+  return cartItemsList().reduce((sum,it)=> sum + it.price*it.qty, 0);
+}
+
+function selectedZoneFee(){
+  const zoneId = document.getElementById('zoneSelect') ? document.getElementById('zoneSelect').value : '';
+  const zone = deliveryZones.find(z=> z.id === zoneId);
+  return zone ? Number(zone.fee||0) : 0;
+}
+
+function updateCartBar(){
+  const bar = document.getElementById('cartBar');
+  const items = cartItemsList();
+  const count = items.reduce((s,it)=> s+it.qty, 0);
+  if(count === 0){ bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  document.getElementById('cartBarCount').textContent = count;
+  document.getElementById('cartBarTotal').textContent = (cartSubtotal() + selectedZoneFee()).toFixed(2);
+}
+
+function scrollToCat(catId, btn){
+  const el = document.getElementById('pmcat-'+catId);
+  if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  document.querySelectorAll('.pm-cat-nav-btn').forEach(b=> b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+function populateZoneSelect(){
+  const sel = document.getElementById('zoneSelect');
+  sel.innerHTML = deliveryZones.length
+    ? deliveryZones.map(z=> `<option value="${z.id}">${escapeHtml(z.name)} (+${Number(z.fee||0).toFixed(2)} ج.م)</option>`).join('')
+    : `<option value="">لا توجد مناطق توصيل معرّفة</option>`;
+  onZoneChange();
+}
+
+function onZoneChange(){
+  renderTotals();
+  const zoneId = document.getElementById('zoneSelect').value;
+  const zone = deliveryZones.find(z=> z.id === zoneId);
+  document.getElementById('deliveryEta').textContent = zone
+    ? `⏱️ الوقت المتوقع للتوصيل لمنطقة ${zone.name}: تقريبًا 30-45 دقيقة بعد تأكيد الطلب`
+    : '';
+}
+
+function renderCartLines(){
+  const items = cartItemsList();
+  const wrap = document.getElementById('cartLinesWrap');
+  if(items.length === 0){
+    wrap.innerHTML = `<div class="center-msg" style="padding:20px;">السلة فاضية</div>`;
+  } else {
+    wrap.innerHTML = items.map(it=> `
+      <div class="cart-line">
+        <div class="cl-name">${escapeHtml(it.name)}<div class="cl-price">${it.price.toFixed(2)} ج.م</div></div>
+        <div class="qty-stepper"><button onclick="changeQty('${it.productId}',-1)">−</button><span>${it.qty}</span><button onclick="changeQty('${it.productId}',1)">+</button></div>
+      </div>`).join('');
+  }
+  renderTotals();
+}
+
+function renderTotals(){
+  const subtotal = cartSubtotal();
+  const fee = selectedZoneFee();
+  document.getElementById('totalSubtotal').textContent = subtotal.toFixed(2);
+  document.getElementById('totalDelivery').textContent = fee.toFixed(2);
+  document.getElementById('totalGrand').textContent = (subtotal+fee).toFixed(2);
+  updateCartBar();
+}
+
+function renderBankBox(){
+  document.getElementById('bankDetailsText').innerHTML = `
+    <div><b>اسم صاحب الحساب:</b> ${escapeHtml(publicSettings.bankAccountName || '—')}</div>
+    <div><b>رقم الحساب:</b> ${escapeHtml(publicSettings.bankAccountNumber || '—')}</div>
+    <div><b>IBAN:</b> ${escapeHtml(publicSettings.bankIBAN || '—')}</div>
+    <div style="margin-top:6px; color:var(--muted); font-size:12px;">حوّل المبلغ ثم ارفع صورة الإيصال تحت، وهنأكد طلبك بعد المراجعة.</div>
+  `;
+}
+
+function setPaymentMethod(method){
+  paymentMethod = method;
+  document.getElementById('payCodOption').classList.toggle('active', method==='cod');
+  document.getElementById('payBankOption').classList.toggle('active', method==='bank_transfer');
+  document.getElementById('bankTransferBox').classList.toggle('hidden', method!=='bank_transfer');
+}
+
+function openCartSheet(){
+  renderCartLines();
+  document.getElementById('cartOverlay').classList.remove('hidden');
+}
+function closeCartSheet(){
+  document.getElementById('cartOverlay').classList.add('hidden');
+}
+
+// Same compression approach used in the main dashboard app (canvas -> JPEG data URL) so
+// the receipt photo can be stored directly on the order document without needing
+// Firebase Storage (and its own public-write security rules) for anonymous customers.
+function compressImageToBase64(file, maxDimension, quality){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e=>{ img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = ()=>{
+      let { width, height } = img;
+      if(width > height && width > maxDimension){
+        height = Math.round(height * (maxDimension/width));
+        width = maxDimension;
+      } else if(height > maxDimension){
+        width = Math.round(width * (maxDimension/height));
+        height = maxDimension;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,width,height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function compressReceiptImage(file){
+  const MAX_CHARS = 350000;
+  let maxDimension = 700, quality = 0.7;
+  let result = await compressImageToBase64(file, maxDimension, quality);
+  let attempts = 0;
+  while(result.length > MAX_CHARS && attempts < 5){
+    quality = Math.max(0.35, quality-0.15);
+    maxDimension = Math.max(300, maxDimension-100);
+    result = await compressImageToBase64(file, maxDimension, quality);
+    attempts++;
+  }
+  return result;
+}
+
+async function submitCustomerOrder(){
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const address = document.getElementById('custAddress').value.trim();
+  const zoneId = document.getElementById('zoneSelect').value;
+  const zone = deliveryZones.find(z=> z.id === zoneId);
+  const items = cartItemsList();
+  const errEl = document.getElementById('formErr');
+
+  if(items.length === 0 || !name || !phone || !address || !zoneId){
+    errEl.style.display = 'block';
+    return;
+  }
+  let receiptDataUrl = null;
+  if(paymentMethod === 'bank_transfer'){
+    const fileInput = document.getElementById('receiptFileInput');
+    if(!fileInput.files[0]){
+      errEl.textContent = 'من فضلك ارفع صورة إيصال التحويل';
+      errEl.style.display = 'block';
+      return;
+    }
+  }
+  errEl.style.display = 'none';
+
+  const btn = document.getElementById('submitOrderBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري إرسال الطلب...';
+
+  try{
+    if(paymentMethod === 'bank_transfer'){
+      const fileInput = document.getElementById('receiptFileInput');
+      receiptDataUrl = await compressReceiptImage(fileInput.files[0]);
+    }
+
+    const subtotal = cartSubtotal();
+    const deliveryFee = zone ? Number(zone.fee||0) : 0;
+    const total = subtotal + deliveryFee;
+
+    const orderData = {
+      branchId: branchIdParam || null,
+      orderType: 'delivery',
+      customerName: name,
+      customerPhone: phone,
+      deliveryAddress: address,
+      deliveryZoneId: zoneId,
+      deliveryZoneName: zone ? zone.name : null,
+      deliveryFee,
+      items,
+      subtotal,
+      discount: 0,
+      total,
+      paymentMethod,
+      receiptUrl: receiptDataUrl,
+      source: 'customer_online',
+      status: paymentMethod === 'bank_transfer' ? 'pending_payment' : 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection('restaurants').doc(restaurantId).collection('orders').add(orderData);
+
+    document.getElementById('cartOverlay').classList.add('hidden');
+    document.getElementById('confirmText').textContent = paymentMethod === 'bank_transfer'
+      ? 'طلبك قيد المراجعة الآن — هنأكده بعد التحقق من التحويل خلال دقايق، وهيبدأ التجهيز فورًا بعد التأكيد.'
+      : 'طلبك وصل للمطعم وهيبدأ تجهيزه، والدفع هيكون عند الاستلام. هيوصلك خلال 30-45 دقيقة تقريبًا.';
+    document.getElementById('confirmOverlay').classList.remove('hidden');
+  }catch(e){
+    console.error('submitCustomerOrder error', e);
+    errEl.textContent = 'حصل خطأ أثناء إرسال الطلب، حاول تاني: ' + e.message;
+    errEl.style.display = 'block';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'تأكيد الطلب';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
