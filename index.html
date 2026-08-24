@@ -180,6 +180,7 @@
   .pm-item.unavailable{opacity:.5;}
   .pm-item.unavailable .pm-item-price::after{content:" — " attr(data-unavail); font-size:11px; color:var(--danger); font-weight:400;}
   .pm-empty, .pm-error{text-align:center; padding:60px 20px; color:var(--muted);}
+  .rating-stars span{margin-inline-end:2px;}
   .picker-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-size:13px; gap:10px;}
   .picker-row:last-child{border-bottom:none;}
   .picker-row .p-name{flex:1;}
@@ -341,6 +342,12 @@
     </div>
     <div class="nav-item" data-module="delivery" onclick="showModule('delivery')">
       <span class="nav-icon">🛵</span><span data-i18n="nav_delivery">الدليفري</span>
+    </div>
+    <div class="nav-item" data-module="customers" onclick="showModule('customers')">
+      <span class="nav-icon">👥</span><span data-i18n="nav_customers">العملاء</span>
+    </div>
+    <div class="nav-item" data-module="shifts" onclick="showModule('shifts')">
+      <span class="nav-icon">💰</span><span data-i18n="nav_shifts">الورديات</span>
     </div>
     <div class="nav-item" data-module="settings" onclick="showModule('settings')">
       <span class="nav-icon">⚙️</span><span data-i18n="nav_settings">الإعدادات والبيانات</span>
@@ -676,9 +683,12 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="ingredientList">قائمة المكونات</h3>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <button class="btn btn-outline" onclick="printTable('ingredientsTable', t('ingredientList'))" data-i18n="print">طباعة</button>
               <button class="btn btn-outline" onclick="exportTableToExcel('ingredientsTable', t('ingredientList'))" data-i18n="exportExcel">تصدير Excel</button>
+              <button class="btn btn-outline" onclick="downloadIngredientImportTemplate()" data-i18n="downloadTemplate">تنزيل نموذج Excel</button>
+              <input type="file" id="ingredientImportFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleIngredientImportFile(event)">
+              <button class="btn btn-outline" onclick="document.getElementById('ingredientImportFileInput').click()" data-i18n="importFromExcel">📥 استيراد من Excel</button>
               <button class="btn" onclick="openIngredientModal()" data-i18n="addIngredient">+ إضافة مكوّن</button>
             </div>
           </div>
@@ -900,6 +910,106 @@
               <tbody id="driversTbody"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customers Module: derived from order history, with WhatsApp click-to-chat actions
+         for rating requests and coupon sends (no backend/API required). -->
+    <div id="module-customers" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="customerList">قائمة العملاء</h3>
+        </div>
+        <div class="report-filters" style="margin-bottom:14px;">
+          <input type="text" id="customerSearchInput" placeholder="🔍" oninput="renderCustomersTable()" style="flex:1; min-width:140px;">
+          <select id="customerSortSelect" onchange="renderCustomersTable()">
+            <option value="totalSpent" data-i18n="sortByTotalSpent">الأكثر إنفاقًا</option>
+            <option value="ordersCount" data-i18n="sortByOrdersCount">الأكثر طلبات</option>
+            <option value="recent" data-i18n="sortByRecent">الأحدث طلبًا</option>
+            <option value="oldest" data-i18n="sortByOldest">الأقدم طلبًا (لم يطلبوا مؤخرًا)</option>
+          </select>
+        </div>
+        <div class="report-filters" style="margin-bottom:14px; align-items:center;">
+          <label style="font-size:12px; color:var(--muted); white-space:nowrap;" data-i18n="followUpAfterDays">اعتبره محتاج متابعة بعد (يوم)</label>
+          <input type="number" id="followUpThresholdInput" value="14" min="1" style="width:70px;" onchange="renderCustomersTable()">
+          <label class="checkbox-label" style="font-size:12px;">
+            <input type="checkbox" id="followUpOnlyCheckbox" onchange="renderCustomersTable()">
+            <span data-i18n="showFollowUpOnly">إظهار المحتاجين متابعة فقط</span>
+          </label>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <label class="checkbox-label" style="font-size:12px;">
+            <input type="checkbox" id="customerSelectAllCheckbox" onchange="toggleSelectAllCustomers()">
+            <span data-i18n="selectAll">تحديد الكل</span>
+          </label>
+          <button class="btn btn-outline" onclick="openBulkCouponModal()" data-i18n="sendCouponToSelected">🎁 إرسال كوبون للمحددين</button>
+        </div>
+        <div id="customersTableWrap">
+          <div class="empty-state" id="customersEmpty">
+            <div class="icon">👥</div>
+            <p data-i18n="noCustomersYet">لا يوجد عملاء بأرقام هواتف مسجّلة بعد</p>
+          </div>
+          <table id="customersTable" style="display:none;">
+            <thead>
+              <tr>
+                <th></th>
+                <th data-i18n="colName">الاسم</th>
+                <th data-i18n="colPhone">الهاتف</th>
+                <th data-i18n="colOrdersCount">عدد الطلبات</th>
+                <th data-i18n="colTotalSpent">إجمالي الإنفاق</th>
+                <th data-i18n="colRating">التقييم</th>
+                <th data-i18n="colLastOrder">آخر طلب</th>
+                <th data-i18n="colLastContact">آخر تواصل</th>
+                <th data-i18n="colActions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="customersTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shifts Module: open/close cash register shifts, cash reconciliation, history -->
+    <div id="module-shifts" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="currentShiftStatus">حالة الوردية الحالية</h3>
+        </div>
+        <div class="field">
+          <label data-i18n="branchForShift">الفرع</label>
+          <select id="shiftBranchSelect" onchange="renderCurrentShiftStatus()"></select>
+        </div>
+        <div id="currentShiftStatusWrap"></div>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <div class="panel-head">
+          <h3 data-i18n="shiftHistory">سجل الورديات</h3>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline" onclick="printTable('shiftsHistoryTable', t('shiftHistory'))" data-i18n="print">طباعة</button>
+            <button class="btn btn-outline" onclick="exportTableToExcel('shiftsHistoryTable', t('shiftHistory'))" data-i18n="exportExcel">تصدير Excel</button>
+          </div>
+        </div>
+        <div id="shiftsHistoryWrap">
+          <div class="empty-state" id="shiftsHistoryEmpty">
+            <div class="icon">🧾</div>
+            <p data-i18n="noShiftsYet">لا توجد ورديات مسجّلة بعد</p>
+          </div>
+          <table id="shiftsHistoryTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colBranch">الفرع</th>
+                <th data-i18n="cashierName">الكاشير</th>
+                <th data-i18n="shiftOpenedAt">وقت الفتح</th>
+                <th data-i18n="shiftClosedAt">وقت الإغلاق</th>
+                <th data-i18n="colTotalSales">إجمالي المبيعات</th>
+                <th data-i18n="cashDifference">فرق الكاش</th>
+                <th data-i18n="colActions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="shiftsHistoryTbody"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1148,6 +1258,14 @@
     <div class="field">
       <label data-i18n="customerPhone">رقم الهاتف (اختياري)</label>
       <input type="text" id="orderCustomerPhoneInput" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="field">
+      <label data-i18n="paymentMethod">طريقة الدفع</label>
+      <select id="orderPaymentMethodInput">
+        <option value="cash" data-i18n="paymentCash">كاش</option>
+        <option value="card" data-i18n="paymentCard">كارت</option>
+        <option value="wallet" data-i18n="paymentWallet">محفظة إلكترونية</option>
+      </select>
     </div>
     <div class="field">
       <label data-i18n="couponCode">كود الكوبون (اختياري)</label>
@@ -1477,6 +1595,36 @@
   </div>
 </div>
 
+<!-- Ingredient Import Preview Modal -->
+<div class="modal-overlay" id="ingredientImportModal">
+  <div class="modal" style="max-width:560px;">
+    <h3 data-i18n="importPreviewTitle">معاينة الاستيراد</h3>
+    <p id="ingImportSummaryText" style="font-size:13px; color:var(--muted); margin-bottom:12px;"></p>
+    <div id="ingImportErrorsWrap" style="display:none; margin-bottom:12px;">
+      <p style="font-size:13px; color:var(--danger); font-weight:600;" data-i18n="importErrorsFound">تم تجاهل الصفوف التالية بسبب أخطاء:</p>
+      <div id="ingImportErrorsList" style="max-height:140px; overflow-y:auto; font-size:12px; color:var(--danger); background:#fef2f2; border-radius:8px; padding:8px;"></div>
+    </div>
+    <div id="ingImportPreviewWrap" style="max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+      <table style="width:100%; font-size:12px;">
+        <thead>
+          <tr>
+            <th style="padding:6px; text-align:right;" data-i18n="colName">الاسم</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colUnit">الوحدة</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colCostPerUnit">تكلفة الوحدة</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colCurrentStock">المخزون الحالي</th>
+            <th style="padding:6px; text-align:right;" data-i18n="colMinStock">الحد الأدنى</th>
+          </tr>
+        </thead>
+        <tbody id="ingImportPreviewTbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeIngredientImportModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="commitIngredientImport()" id="confirmIngImportBtn" data-i18n="confirmImport">تأكيد الاستيراد</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delivery Zone Modal -->
 <div class="modal-overlay" id="deliveryZoneModal">
   <div class="modal">
@@ -1517,6 +1665,77 @@
     <div class="modal-actions">
       <button class="btn btn-outline" style="flex:1;" onclick="closeDriverModal()" data-i18n="cancel">إلغاء</button>
       <button class="btn" style="flex:1;" onclick="saveDriver()" id="saveDriverBtn" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Open Shift Modal -->
+<div class="modal-overlay" id="openShiftModal">
+  <div class="modal">
+    <h3 data-i18n="openNewShift">فتح وردية جديدة</h3>
+    <div class="field">
+      <label data-i18n="cashierName">اسم الكاشير</label>
+      <input type="text" id="shiftCashierNameInput" placeholder="اسم الكاشير">
+    </div>
+    <div class="field">
+      <label data-i18n="openingCash">المبلغ الافتتاحي (النقدية في الدرج)</label>
+      <input type="number" id="shiftOpeningCashInput" placeholder="500" min="0" step="0.01">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeOpenShiftModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="confirmOpenShift()" id="confirmOpenShiftBtn" data-i18n="openShift">فتح الوردية</button>
+    </div>
+  </div>
+</div>
+
+<!-- Close Shift Modal -->
+<div class="modal-overlay" id="closeShiftModal">
+  <div class="modal">
+    <h3 data-i18n="closeShift">قفل الوردية</h3>
+    <div id="closeShiftSummary" style="background:var(--bg); border-radius:10px; padding:12px; margin-bottom:14px; font-size:13px;"></div>
+    <div class="field">
+      <label data-i18n="actualCashCount">المبلغ الفعلي بالدرج الآن</label>
+      <input type="number" id="shiftClosingCashInput" min="0" step="0.01" oninput="updateShiftDifferencePreview()">
+    </div>
+    <div id="shiftDifferencePreview" style="font-size:14px; font-weight:700; margin-bottom:14px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeCloseShiftModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1; background:var(--danger);" onclick="confirmCloseShift()" id="confirmCloseShiftBtn" data-i18n="confirmCloseShift">تأكيد قفل الوردية</button>
+    </div>
+  </div>
+</div>
+
+<!-- Send Coupon (single customer) Modal -->
+<div class="modal-overlay" id="sendCouponModal">
+  <div class="modal">
+    <h3 data-i18n="sendCoupon">إرسال كوبون</h3>
+    <div class="field">
+      <label data-i18n="chooseCoupon">اختر كوبون</label>
+      <select id="sendCouponSelect" onchange="updateCouponMessagePreview()"></select>
+    </div>
+    <div class="field">
+      <label data-i18n="messagePreview">معاينة الرسالة (قابلة للتعديل)</label>
+      <textarea id="couponMessagePreview" rows="4" style="width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeSendCouponModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1; background:#25D366;" onclick="sendCouponViaWhatsapp()" data-i18n="openWhatsapp">💬 فتح واتساب</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Coupon Send Queue Modal -->
+<div class="modal-overlay" id="bulkCouponModal">
+  <div class="modal" style="max-width:480px;">
+    <h3 data-i18n="sendCouponToSelected">🎁 إرسال كوبون للمحددين</h3>
+    <div class="field">
+      <label data-i18n="chooseCoupon">اختر كوبون</label>
+      <select id="bulkCouponSelect" onchange="renderBulkCouponQueue()"></select>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin:8px 0;" data-i18n="bulkSendHint">واتساب مش بيسمح بإرسال جماعي أوتوماتيكي — هتلاقي زرار منفصل لكل عميل، دوس عليهم واحد واحد.</p>
+    <div id="bulkCouponQueueList" style="max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeBulkCouponModal()" data-i18n="close">إغلاق</button>
     </div>
   </div>
 </div>
@@ -1813,7 +2032,39 @@ const translations = {
     menuQrRulesWarning:"⚠️ مهم: القائمة دي هتشتغل بس بعد ما تعدّل صلاحيات القراءة (Firestore Rules) في Firebase Console عشان تسمح لأي حد يشوف المنتجات والتصنيفات بدون تسجيل دخول. اسأل عن الكود المطلوب لو محتاج.",
     linkCopied:"تم نسخ الرابط", loadingMenu:"جاري تحميل القائمة...",
     menuNotAvailable:"القائمة غير متاحة حاليًا", otherItems:"أصناف أخرى", ourMenu:"قائمتنا",
-    scanMenuQr:"امسح الكود لعرض المنيو"
+    scanMenuQr:"امسح الكود لعرض المنيو",
+    nav_customers:"العملاء", customerList:"قائمة العملاء",
+    sortByTotalSpent:"الأكثر إنفاقًا", sortByOrdersCount:"الأكثر طلبات",
+    sortByRecent:"الأحدث طلبًا", sortByOldest:"الأقدم طلبًا (لم يطلبوا مؤخرًا)",
+    selectAll:"تحديد الكل", sendCouponToSelected:"🎁 إرسال كوبون للمحددين",
+    noCustomersYet:"لا يوجد عملاء بأرقام هواتف مسجّلة بعد",
+    colOrdersCount:"عدد الطلبات", colTotalSpent:"إجمالي الإنفاق", colRating:"التقييم", colLastOrder:"آخر طلب",
+    whatsappChat:"مراسلة واتساب", requestRating:"طلب تقييم", sendCoupon:"إرسال كوبون",
+    ratingRequestMessage:"أهلًا {name} 🙏 إزاي كانت تجربتك معانا؟ يسعدنا جدًا تقييمك ⭐️⭐️⭐️⭐️⭐️",
+    chooseCoupon:"اختر كوبون", messagePreview:"معاينة الرسالة (قابلة للتعديل)",
+    openWhatsapp:"💬 فتح واتساب", noCouponsYet:"لا توجد كوبونات — أضف كوبون أولاً من قسم الكوبونات",
+    currencyUnit:"ج.م",
+    couponMessageTemplate:"أهلًا {name} 🎁 هدية خاصة ليك! استخدم كود {code} وخد خصم {discount} على طلبك الجاي معانا.",
+    bulkSendHint:"واتساب مش بيسمح بإرسال جماعي أوتوماتيكي — هتلاقي زرار منفصل لكل عميل، دوس عليهم واحد واحد.",
+    selectAtLeastOneCustomer:"اختر عميل واحد على الأقل أولاً", send:"إرسال", close:"إغلاق",
+    ingredientsWillBeAdded:"مكوّن سيتم إضافته",
+    nav_shifts:"الورديات",
+    paymentMethod:"طريقة الدفع", paymentCash:"كاش", paymentCard:"كارت", paymentWallet:"محفظة إلكترونية",
+    payment_cash:"كاش", payment_card:"كارت", payment_wallet:"محفظة إلكترونية",
+    currentShiftStatus:"حالة الوردية الحالية", branchForShift:"الفرع",
+    shiftHistory:"سجل الورديات", noShiftsYet:"لا توجد ورديات مسجّلة بعد",
+    cashierName:"اسم الكاشير", shiftOpenedAt:"وقت الفتح", shiftClosedAt:"وقت الإغلاق",
+    colTotalSales:"إجمالي المبيعات", cashDifference:"فرق الكاش",
+    openNewShift:"فتح وردية جديدة", openingCash:"المبلغ الافتتاحي (النقدية في الدرج)",
+    openShift:"فتح الوردية", closeShift:"قفل الوردية",
+    noOpenShift:"لا توجد وردية مفتوحة لهذا الفرع", shiftOpenSince:"الوردية مفتوحة منذ",
+    shiftAlreadyOpen:"يوجد وردية مفتوحة بالفعل لهذا الفرع", shiftOpened:"تم فتح الوردية",
+    actualCashCount:"المبلغ الفعلي بالدرج الآن", confirmCloseShift:"تأكيد قفل الوردية",
+    expectedCash:"المبلغ المتوقع", cashMatches:"✓ المبلغ مطابق تمامًا",
+    cashSurplus:"فائض في الكاش", cashShortage:"عجز في الكاش", shiftClosed:"تم قفل الوردية",
+    shiftReceipt:"إيصال الوردية",
+    colLastContact:"آخر تواصل", neverContacted:"لم يتم التواصل بعد", needsFollowUp:"يحتاج متابعة",
+    followUpAfterDays:"اعتبره محتاج متابعة بعد (يوم)", showFollowUpOnly:"إظهار المحتاجين متابعة فقط"
   },
   en: {
     loginTitle:"Restaurant Management Platform", loginSub:"Sign in to manage your restaurant",
@@ -1985,7 +2236,39 @@ const translations = {
     menuQrRulesWarning:"⚠️ Important: this menu only works after you update Firestore Rules in the Firebase Console to allow public read access to products and categories without login. Ask for the exact rules snippet if you need it.",
     linkCopied:"Link copied", loadingMenu:"Loading menu...",
     menuNotAvailable:"Menu not available right now", otherItems:"Other Items", ourMenu:"Our Menu",
-    scanMenuQr:"Scan the code to view the menu"
+    scanMenuQr:"Scan the code to view the menu",
+    nav_customers:"Customers", customerList:"Customer List",
+    sortByTotalSpent:"Highest Spending", sortByOrdersCount:"Most Orders",
+    sortByRecent:"Most Recent Order", sortByOldest:"Oldest Order (haven't ordered recently)",
+    selectAll:"Select All", sendCouponToSelected:"🎁 Send Coupon to Selected",
+    noCustomersYet:"No customers with a saved phone number yet",
+    colOrdersCount:"Orders", colTotalSpent:"Total Spent", colRating:"Rating", colLastOrder:"Last Order",
+    whatsappChat:"WhatsApp Chat", requestRating:"Request Rating", sendCoupon:"Send Coupon",
+    ratingRequestMessage:"Hi {name} 🙏 How was your experience with us? We'd love your rating ⭐️⭐️⭐️⭐️⭐️",
+    chooseCoupon:"Choose a coupon", messagePreview:"Message preview (editable)",
+    openWhatsapp:"💬 Open WhatsApp", noCouponsYet:"No coupons yet — add one from the Coupons section first",
+    currencyUnit:"EGP",
+    couponMessageTemplate:"Hi {name} 🎁 A special gift for you! Use code {code} for {discount} off your next order with us.",
+    bulkSendHint:"WhatsApp doesn't support automatic bulk sending — you'll get a separate button per customer, click through them one by one.",
+    selectAtLeastOneCustomer:"Select at least one customer first", send:"Send", close:"Close",
+    ingredientsWillBeAdded:"ingredients will be added",
+    nav_shifts:"Shifts",
+    paymentMethod:"Payment Method", paymentCash:"Cash", paymentCard:"Card", paymentWallet:"E-Wallet",
+    payment_cash:"Cash", payment_card:"Card", payment_wallet:"E-Wallet",
+    currentShiftStatus:"Current Shift Status", branchForShift:"Branch",
+    shiftHistory:"Shift History", noShiftsYet:"No shifts recorded yet",
+    cashierName:"Cashier Name", shiftOpenedAt:"Opened At", shiftClosedAt:"Closed At",
+    colTotalSales:"Total Sales", cashDifference:"Cash Difference",
+    openNewShift:"Open New Shift", openingCash:"Opening Cash (drawer float)",
+    openShift:"Open Shift", closeShift:"Close Shift",
+    noOpenShift:"No open shift for this branch", shiftOpenSince:"Shift open since",
+    shiftAlreadyOpen:"A shift is already open for this branch", shiftOpened:"Shift opened",
+    actualCashCount:"Actual Cash in Drawer Now", confirmCloseShift:"Confirm Close Shift",
+    expectedCash:"Expected Cash", cashMatches:"✓ Cash matches exactly",
+    cashSurplus:"Cash Surplus", cashShortage:"Cash Shortage", shiftClosed:"Shift closed",
+    shiftReceipt:"Shift Receipt",
+    colLastContact:"Last Contact", neverContacted:"Never contacted", needsFollowUp:"Needs Follow-up",
+    followUpAfterDays:"Flag as needing follow-up after (days)", showFollowUpOnly:"Show only those needing follow-up"
   }
 };
 
@@ -2090,6 +2373,8 @@ if(publicMenuRestaurantId){
     await loadExpenses();
     await loadDeliveryZones();
     await loadDrivers();
+    await loadShifts();
+    await loadCustomerContacts();
     startOrdersListener();
   } else {
     currentUser = null;
@@ -2113,6 +2398,8 @@ function showModule(name){
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
   if(name === 'settings') renderMenuQrSection();
+  if(name === 'customers') renderCustomersTable();
+  if(name === 'shifts'){ populateShiftBranchSelect(); renderCurrentShiftStatus(); renderShiftsHistoryTable(); }
 }
 
 function onBranchFilterChange(){
@@ -2178,6 +2465,7 @@ function updateBranchFilterOptions(){
   }
 
   populateExpenseBranchSelects();
+  populateShiftBranchSelect();
 }
 
 function openBranchModal(branchId){
@@ -2322,9 +2610,9 @@ function buildTempOrdersTable(){
   const rows = ordersCache.map(o=>{
     const itemsSummary = (o.items||[]).map(it=> `${it.name} x${it.qty}`).join(', ');
     const dateStr = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
-    return [dateStr, branchNameById(o.branchId), itemsSummary, Number(o.total||0).toFixed(2), t('status_'+(o.status||'pending'))];
+    return [dateStr, branchNameById(o.branchId), itemsSummary, Number(o.total||0).toFixed(2), t('payment_'+(o.paymentMethod||'cash')), t('status_'+(o.status||'pending'))];
   });
-  buildTempExportTable('ordersExportTable', [t('colDate'), t('colBranch'), t('orderItemsSummary'), t('colTotal'), t('colStatus')], rows);
+  buildTempExportTable('ordersExportTable', [t('colDate'), t('colBranch'), t('orderItemsSummary'), t('colTotal'), t('paymentMethod'), t('colStatus')], rows);
 }
 
 function exportReportsToExcel(){
@@ -3030,6 +3318,156 @@ async function commitCategoryImport(){
   }
 }
 
+/* ---------- Bulk Ingredient Import from Excel (SheetJS) ----------
+   Same pattern as products/categories: template, flexible-header parsing, preview modal,
+   chunked batch write. Unit and storage location values are matched loosely (Arabic or
+   English words) and default sensibly if not recognized, rather than rejecting the row. */
+let pendingIngredientImportRows = [];
+let pendingIngredientImportErrors = [];
+
+function downloadIngredientImportTemplate(){
+  const rows = [
+    { 'الاسم':'دقيق', 'الوحدة':'kg', 'تكلفة الوحدة':15, 'المخزون الحالي':50, 'الحد الأدنى':10, 'مكان التخزين':'مخزن' },
+    { 'الاسم':'لحم بقري مفروم', 'الوحدة':'kg', 'تكلفة الوحدة':220, 'المخزون الحالي':20, 'الحد الأدنى':5, 'مكان التخزين':'فريزر' }
+  ];
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ingredients');
+  XLSX.writeFile(wb, 'ingredient-import-template.xlsx');
+}
+
+function parseImportUnit(v){
+  const s = v.trim().toLowerCase();
+  if(['kg','كيلو','كيلوجرام','كجم'].includes(s)) return 'kg';
+  if(['g','جرام','جم'].includes(s)) return 'g';
+  if(['l','لتر'].includes(s)) return 'l';
+  if(['ml','ملليلتر','مل'].includes(s)) return 'ml';
+  if(['piece','قطعة','حبة'].includes(s)) return 'piece';
+  return 'kg'; // sensible default rather than rejecting the row over an unrecognized unit
+}
+function parseImportStorage(v){
+  const s = v.trim().toLowerCase();
+  if(['fridge','ثلاجة'].includes(s)) return 'fridge';
+  if(['freezer','فريزر'].includes(s)) return 'freezer';
+  return 'warehouse';
+}
+
+function handleIngredientImportFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type:'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+
+      pendingIngredientImportRows = [];
+      pendingIngredientImportErrors = [];
+
+      rows.forEach((row, idx)=>{
+        const name = getImportField(row, ['الاسم','اسم المكون','Name','Ingredient Name']);
+        const unitRaw = getImportField(row, ['الوحدة','Unit']);
+        const costRaw = getImportField(row, ['تكلفة الوحدة','السعر','Cost','Cost Per Unit','Price']);
+        const stockRaw = getImportField(row, ['المخزون الحالي','المخزون','Current Stock','Stock']);
+        const minStockRaw = getImportField(row, ['الحد الأدنى','Min Stock','Minimum Stock']);
+        const storageRaw = getImportField(row, ['مكان التخزين','التخزين','Storage','Storage Location']);
+
+        if(!name){
+          pendingIngredientImportErrors.push(`${t('importRow')} ${idx+2}: ${t('importErrorNoName')}`);
+          return;
+        }
+        const costPerUnit = Math.max(0, parseFloat(costRaw) || 0);
+        const currentStock = Math.max(0, parseFloat(stockRaw) || 0);
+        const minStock = Math.max(0, parseFloat(minStockRaw) || 0);
+
+        pendingIngredientImportRows.push({
+          name,
+          unit: unitRaw ? parseImportUnit(unitRaw) : 'kg',
+          costPerUnit, currentStock, minStock,
+          storageLocation: storageRaw ? parseImportStorage(storageRaw) : 'warehouse'
+        });
+      });
+
+      renderIngredientImportPreview();
+      document.getElementById('ingredientImportModal').classList.add('active');
+    }catch(err){
+      console.error('handleIngredientImportFile error', err);
+      showToast(t('invalidImportFile'));
+    }finally{
+      event.target.value = '';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderIngredientImportPreview(){
+  document.getElementById('ingImportSummaryText').textContent = `${pendingIngredientImportRows.length} ${t('ingredientsWillBeAdded')}`;
+
+  const errorsWrap = document.getElementById('ingImportErrorsWrap');
+  if(pendingIngredientImportErrors.length > 0){
+    errorsWrap.style.display = 'block';
+    document.getElementById('ingImportErrorsList').innerHTML = pendingIngredientImportErrors.map(e=> `<div>${escapeHtml(e)}</div>`).join('');
+  } else {
+    errorsWrap.style.display = 'none';
+  }
+
+  document.getElementById('ingImportPreviewTbody').innerHTML = pendingIngredientImportRows.map(r=> `<tr>
+    <td style="padding:6px; border-top:1px solid var(--border);">${escapeHtml(r.name)}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${escapeHtml(r.unit)}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${r.costPerUnit.toFixed(2)}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${r.currentStock}</td>
+    <td style="padding:6px; border-top:1px solid var(--border);">${r.minStock}</td>
+  </tr>`).join('');
+
+  document.getElementById('confirmIngImportBtn').disabled = pendingIngredientImportRows.length === 0;
+}
+
+function closeIngredientImportModal(){
+  document.getElementById('ingredientImportModal').classList.remove('active');
+  pendingIngredientImportRows = [];
+  pendingIngredientImportErrors = [];
+}
+
+async function commitIngredientImport(){
+  if(pendingIngredientImportRows.length === 0) return;
+  const btn = document.getElementById('confirmIngImportBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = t('importing');
+
+  try{
+    // Skip rows that duplicate an existing ingredient name (case-insensitive) — updating
+    // an existing ingredient's stock should be done through the edit form, not import,
+    // to avoid accidentally overwriting stock someone already adjusted manually.
+    const existingNames = new Set(ingredientsCache.map(i=> (i.name||'').trim().toLowerCase()));
+    const rowsToAdd = pendingIngredientImportRows.filter(row=> !existingNames.has(row.name.trim().toLowerCase()));
+
+    const writeOps = rowsToAdd.map(row=>{
+      const data = {
+        name: row.name, unit: row.unit, costPerUnit: row.costPerUnit,
+        currentStock: row.currentStock, minStock: row.minStock, storageLocation: row.storageLocation,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      return (batch)=> batch.set(ingredientsCol().doc(), data);
+    });
+    await commitInChunks(writeOps);
+
+    await loadIngredients();
+    closeIngredientImportModal();
+    const skipped = pendingIngredientImportRows.length - rowsToAdd.length;
+    showToast(`${t('importComplete')} (${writeOps.length})` + (skipped > 0 ? ` — ${skipped} ${t('duplicatesSkipped')}` : ''));
+  }catch(e){
+    console.error('commitIngredientImport error', e);
+    showToast(t('importFailed') + ': ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
 async function deleteProduct(productId){
   if(!confirm(t('confirmDelete'))) return;
   try{
@@ -3054,6 +3492,9 @@ function startOrdersListener(){
     renderOrdersBoard();
     renderReports();
     updateDashboardStats();
+    if(document.getElementById('module-customers') && document.getElementById('module-customers').style.display !== 'none'){
+      renderCustomersTable();
+    }
   }, err=> console.error('orders listener error', err));
 }
 
@@ -3153,6 +3594,20 @@ function renderOrderCard(o){
     </div>`;
   }
 
+  // Star-rating capture — only offered once an order is delivered (the natural point to
+  // ask), and only shown if not already rated. Purely internal (staff taps on behalf of
+  // the customer after asking, or a customer using a shared device); no external API.
+  let ratingHtml = '';
+  if(o.status === 'delivered'){
+    if(o.customerRating){
+      ratingHtml = `<div style="font-size:13px; margin:4px 0;">${'⭐'.repeat(o.customerRating)}${'☆'.repeat(5-o.customerRating)}</div>`;
+    } else if(o.customerPhone){
+      ratingHtml = `<div class="rating-stars" style="font-size:16px; margin:4px 0; cursor:pointer;">
+        ${[1,2,3,4,5].map(n=> `<span onclick="setOrderRating('${o.id}', ${n})">☆</span>`).join('')}
+      </div>`;
+    }
+  }
+
   return `<div class="order-card status-${o.status||'pending'}">
     <div class="order-card-top">
       <span class="oid">#${shortId}</span>
@@ -3165,9 +3620,19 @@ function renderOrderCard(o){
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
+    ${ratingHtml}
     ${isDelivery && (o.status==='ready' || o.status==='out_for_delivery') ? `<button class="btn btn-outline" style="width:100%; margin-bottom:6px; font-size:12px; padding:6px;" onclick="openAssignDriverModal('${o.id}')">${o.driverName ? t('changeDriver') : t('assignDriver')}</button>` : ''}
     ${actionsHtml ? `<div class="order-card-actions">${actionsHtml}</div>` : ''}
   </div>`;
+}
+
+async function setOrderRating(orderId, rating){
+  try{
+    await ordersCol().doc(orderId).update({ customerRating: rating });
+  }catch(e){
+    console.error('setOrderRating error', e);
+    showToast(e.message);
+  }
 }
 
 async function updateOrderStatus(orderId, newStatus){
@@ -3425,6 +3890,540 @@ function switchDeliveryTab(tab){
   document.getElementById('delTab-'+tab).classList.add('active');
 }
 
+/* ---------- Customers (derived from order history, not a separate collection) ----------
+   A "customer" here is any distinct phone number seen across orders. Since phone is the
+   only reliable identifier we collect, orders without a phone (common for quick dine-in
+   sales) simply aren't attributed to a customer — that's expected, not a bug. */
+let selectedCustomerPhones = new Set();
+
+/* ---------- Customer Contact Log (Firestore: restaurants/{rid}/customerContacts/{phone}) ----------
+   One doc per phone number, keyed by the digits-only phone so it's a stable, collision-free
+   Firestore doc ID. Updated every time a WhatsApp message is sent from the Customers module
+   (chat / rating request / coupon), so staff can see who's already been contacted and when
+   — and, combined with last-order date, who genuinely needs a follow-up vs who was just
+   messaged yesterday. */
+let customerContactsCache = {}; // { phoneDigitsOnly: { phone, lastContactAt, lastContactType, contactCount } }
+
+function customerContactsCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('customerContacts');
+}
+
+function sanitizePhoneForDocId(phone){
+  return phone.replace(/[^\d]/g, '');
+}
+
+async function loadCustomerContacts(){
+  try{
+    const snap = await customerContactsCol().get();
+    customerContactsCache = {};
+    snap.docs.forEach(d=> customerContactsCache[d.id] = d.data());
+    renderCustomersTable();
+  }catch(e){
+    console.error('loadCustomerContacts error', e);
+  }
+}
+
+async function logCustomerContact(phone, contactType){
+  const docId = sanitizePhoneForDocId(phone);
+  if(!docId) return;
+  try{
+    await customerContactsCol().doc(docId).set({
+      phone, lastContactType: contactType,
+      lastContactAt: firebase.firestore.FieldValue.serverTimestamp(),
+      contactCount: firebase.firestore.FieldValue.increment(1)
+    }, { merge:true });
+    // Optimistic local update so the "last contact" column reflects this immediately,
+    // without waiting on a full reload — a plain JS Date works fine since toJsDate()
+    // (used at render time) already handles both Firestore Timestamps and plain Dates.
+    customerContactsCache[docId] = {
+      ...(customerContactsCache[docId]||{}),
+      phone, lastContactType: contactType, lastContactAt: new Date()
+    };
+    renderCustomersTable();
+  }catch(e){
+    console.error('logCustomerContact error', e);
+  }
+}
+
+function toJsDate(v){
+  if(!v) return null;
+  return typeof v.toDate === 'function' ? v.toDate() : v;
+}
+
+function computeCustomersFromOrders(){
+  const map = {};
+  ordersCache.forEach(o=>{
+    const phone = (o.customerPhone||'').trim();
+    if(!phone) return;
+    if(!map[phone]){
+      map[phone] = { phone, name:'', ordersCount:0, totalSpent:0, lastOrderAt:null, ratings:[] };
+    }
+    const c = map[phone];
+    if(o.customerName) c.name = o.customerName; // most recent non-empty name wins
+    if(o.status !== 'cancelled'){
+      c.ordersCount += 1;
+      c.totalSpent += (o.total||0);
+    }
+    const orderDate = (o.createdAt && o.createdAt.toDate) ? o.createdAt.toDate() : null;
+    if(orderDate && (!c.lastOrderAt || orderDate > c.lastOrderAt)) c.lastOrderAt = orderDate;
+    if(o.customerRating) c.ratings.push(o.customerRating);
+  });
+  return Object.values(map);
+}
+
+function renderCustomersTable(){
+  const table = document.getElementById('customersTable');
+  const empty = document.getElementById('customersEmpty');
+  const tbody = document.getElementById('customersTbody');
+  if(!table) return;
+
+  let customers = computeCustomersFromOrders();
+
+  const query = (document.getElementById('customerSearchInput').value||'').trim().toLowerCase();
+  if(query){
+    customers = customers.filter(c=> (c.name||'').toLowerCase().includes(query) || c.phone.includes(query));
+  }
+
+  // "Needs follow-up" = hasn't ordered in [threshold] days AND hasn't been contacted in
+  // that same window either — so someone already messaged yesterday isn't flagged again.
+  const thresholdDays = parseInt(document.getElementById('followUpThresholdInput').value) || 14;
+  const now = new Date();
+  customers.forEach(c=>{
+    const contact = customerContactsCache[sanitizePhoneForDocId(c.phone)];
+    c.lastContactAt = contact ? toJsDate(contact.lastContactAt) : null;
+    const daysSinceOrder = c.lastOrderAt ? (now - c.lastOrderAt) / 86400000 : Infinity;
+    const daysSinceContact = c.lastContactAt ? (now - c.lastContactAt) / 86400000 : Infinity;
+    c.needsFollowUp = daysSinceOrder >= thresholdDays && daysSinceContact >= thresholdDays;
+  });
+
+  if(document.getElementById('followUpOnlyCheckbox').checked){
+    customers = customers.filter(c=> c.needsFollowUp);
+  }
+
+  const sortBy = document.getElementById('customerSortSelect').value;
+  if(sortBy === 'totalSpent') customers.sort((a,b)=> b.totalSpent - a.totalSpent);
+  else if(sortBy === 'ordersCount') customers.sort((a,b)=> b.ordersCount - a.ordersCount);
+  else if(sortBy === 'recent') customers.sort((a,b)=> (b.lastOrderAt||0) - (a.lastOrderAt||0));
+  else if(sortBy === 'oldest') customers.sort((a,b)=> (a.lastOrderAt||0) - (b.lastOrderAt||0));
+
+  if(customers.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = customers.map(c=>{
+    const avgRating = c.ratings.length ? (c.ratings.reduce((s,r)=>s+r,0)/c.ratings.length) : null;
+    const ratingHtml = avgRating ? `${'⭐'.repeat(Math.round(avgRating))} <span style="color:var(--muted); font-size:11px;">(${avgRating.toFixed(1)})</span>` : '—';
+    const lastOrderStr = c.lastOrderAt ? c.lastOrderAt.toLocaleDateString(currentLang==='ar'?'ar-EG':'en-US') : '—';
+    const lastContactStr = c.lastContactAt ? c.lastContactAt.toLocaleDateString(currentLang==='ar'?'ar-EG':'en-US') : t('neverContacted');
+    const followUpBadge = c.needsFollowUp ? `<span class="stock-badge low" style="margin-inline-start:6px;">🔔 ${t('needsFollowUp')}</span>` : '';
+    const checked = selectedCustomerPhones.has(c.phone) ? 'checked' : '';
+    return `<tr style="${c.needsFollowUp ? 'background:#fef9f0;' : ''}">
+      <td><input type="checkbox" onchange="toggleCustomerSelection('${c.phone}', this.checked)" ${checked}></td>
+      <td>${escapeHtml(c.name || '—')}${followUpBadge}</td>
+      <td dir="ltr" style="text-align:right;">${escapeHtml(c.phone)}</td>
+      <td>${c.ordersCount}</td>
+      <td>${c.totalSpent.toFixed(2)}</td>
+      <td>${ratingHtml}</td>
+      <td>${lastOrderStr}</td>
+      <td>${lastContactStr}</td>
+      <td class="row-actions">
+        <button onclick="openWhatsappChat('${c.phone}')" title="${t('whatsappChat')}">💬</button>
+        <button onclick="requestRatingViaWhatsapp('${c.phone}')" title="${t('requestRating')}">⭐</button>
+        <button onclick="openSendCouponModal('${c.phone}')" title="${t('sendCoupon')}">🎁</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleCustomerSelection(phone, checked){
+  if(checked) selectedCustomerPhones.add(phone);
+  else selectedCustomerPhones.delete(phone);
+}
+function toggleSelectAllCustomers(){
+  const checkAll = document.getElementById('customerSelectAllCheckbox').checked;
+  const customers = computeCustomersFromOrders();
+  if(checkAll) customers.forEach(c=> selectedCustomerPhones.add(c.phone));
+  else selectedCustomerPhones.clear();
+  renderCustomersTable();
+}
+
+// Egyptian numbers are typically stored as 01XXXXXXXXX (11 digits, no country code).
+// WhatsApp's click-to-chat link needs the full international number with no leading zero
+// or plus sign — so a leading 0 is swapped for Egypt's country code (20). Numbers already
+// given with a country code (starting 20 or +) are left as-is.
+function normalizePhoneForWhatsapp(phone){
+  let p = phone.replace(/[^\d+]/g, '');
+  if(p.startsWith('+')) p = p.slice(1);
+  if(p.startsWith('0')) p = '20' + p.slice(1);
+  return p;
+}
+
+function openWhatsappChat(phone, message, contactType){
+  const intlPhone = normalizePhoneForWhatsapp(phone);
+  const url = `https://wa.me/${intlPhone}` + (message ? `?text=${encodeURIComponent(message)}` : '');
+  window.open(url, '_blank');
+  logCustomerContact(phone, contactType || 'chat');
+}
+
+function requestRatingViaWhatsapp(phone){
+  const customers = computeCustomersFromOrders();
+  const c = customers.find(x=> x.phone === phone);
+  const name = c && c.name ? c.name : '';
+  const message = t('ratingRequestMessage').replace('{name}', name);
+  openWhatsappChat(phone, message, 'rating');
+}
+
+/* ---------- Send Coupon via WhatsApp (single + bulk queue) ---------- */
+let sendCouponTargetPhone = null;
+
+function buildCouponMessage(coupon, customerName){
+  const discountText = coupon.type === 'percentage' ? `${coupon.value}%` : `${coupon.value} ${t('currencyUnit')}`;
+  return t('couponMessageTemplate')
+    .replace('{name}', customerName || '')
+    .replace('{code}', coupon.code)
+    .replace('{discount}', discountText);
+}
+
+function openSendCouponModal(phone){
+  sendCouponTargetPhone = phone;
+  const sel = document.getElementById('sendCouponSelect');
+  sel.innerHTML = couponsCache.map(c=> `<option value="${c.id}">${escapeHtml(c.code)} (${c.type==='percentage' ? c.value+'%' : c.value})</option>`).join('');
+  if(couponsCache.length === 0){
+    sel.innerHTML = `<option value="">${t('noCouponsYet')}</option>`;
+  }
+  updateCouponMessagePreview();
+  document.getElementById('sendCouponModal').classList.add('active');
+}
+function closeSendCouponModal(){
+  document.getElementById('sendCouponModal').classList.remove('active');
+  sendCouponTargetPhone = null;
+}
+function updateCouponMessagePreview(){
+  const couponId = document.getElementById('sendCouponSelect').value;
+  const coupon = couponsCache.find(c=> c.id === couponId);
+  if(!coupon) return;
+  const customers = computeCustomersFromOrders();
+  const c = customers.find(x=> x.phone === sendCouponTargetPhone);
+  document.getElementById('couponMessagePreview').value = buildCouponMessage(coupon, c ? c.name : '');
+}
+function sendCouponViaWhatsapp(){
+  const message = document.getElementById('couponMessagePreview').value;
+  if(!sendCouponTargetPhone){ showToast(t('nothingToExport')); return; }
+  openWhatsappChat(sendCouponTargetPhone, message, 'coupon');
+  closeSendCouponModal();
+}
+
+function openBulkCouponModal(){
+  if(selectedCustomerPhones.size === 0){ showToast(t('selectAtLeastOneCustomer')); return; }
+  const sel = document.getElementById('bulkCouponSelect');
+  sel.innerHTML = couponsCache.map(c=> `<option value="${c.id}">${escapeHtml(c.code)} (${c.type==='percentage' ? c.value+'%' : c.value})</option>`).join('');
+  if(couponsCache.length === 0){
+    sel.innerHTML = `<option value="">${t('noCouponsYet')}</option>`;
+  }
+  renderBulkCouponQueue();
+  document.getElementById('bulkCouponModal').classList.add('active');
+}
+function closeBulkCouponModal(){
+  document.getElementById('bulkCouponModal').classList.remove('active');
+}
+let bulkCouponQueueData = [];
+function renderBulkCouponQueue(){
+  const couponId = document.getElementById('bulkCouponSelect').value;
+  const coupon = couponsCache.find(c=> c.id === couponId);
+  const listEl = document.getElementById('bulkCouponQueueList');
+  const customers = computeCustomersFromOrders().filter(c=> selectedCustomerPhones.has(c.phone));
+
+  if(!coupon){
+    listEl.innerHTML = `<div style="padding:10px; color:var(--muted); font-size:13px;">${t('noCouponsYet')}</div>`;
+    bulkCouponQueueData = [];
+    return;
+  }
+  bulkCouponQueueData = customers.map(c=> ({ phone:c.phone, message: buildCouponMessage(coupon, c.name), name:c.name }));
+  listEl.innerHTML = bulkCouponQueueData.map((entry, idx)=> `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px; border-bottom:1px solid var(--border); font-size:13px;">
+      <span>${escapeHtml(entry.name || entry.phone)}</span>
+      <button class="btn" style="background:#25D366; padding:6px 12px; font-size:12px;" onclick="sendBulkCouponMessage(${idx})">💬 ${t('send')}</button>
+    </div>`).join('');
+}
+function sendBulkCouponMessage(idx){
+  const entry = bulkCouponQueueData[idx];
+  if(!entry) return;
+  openWhatsappChat(entry.phone, entry.message, 'coupon');
+}
+
+/* ---------- Shifts (Firestore: restaurants/{rid}/shifts/{shiftId}) ----------
+   One open shift at a time per branch. Closing a shift computes expected cash from
+   orders placed between shiftOpenedAt and now (excluding cancelled orders), broken
+   down by payment method, and compares it to what's physically counted in the drawer. */
+let shiftsCache = [];
+
+function shiftsCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('shifts');
+}
+
+async function loadShifts(){
+  try{
+    const snap = await shiftsCol().orderBy('openedAt','desc').get();
+    shiftsCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderCurrentShiftStatus();
+    renderShiftsHistoryTable();
+  }catch(e){
+    console.error('loadShifts error', e);
+  }
+}
+
+function populateShiftBranchSelect(){
+  const sel = document.getElementById('shiftBranchSelect');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+  if(current && [...sel.options].some(o=> o.value===current)) sel.value = current;
+}
+
+function findOpenShiftForBranch(branchId){
+  return shiftsCache.find(s=> s.branchId === branchId && s.status === 'open') || null;
+}
+
+function renderCurrentShiftStatus(){
+  const wrap = document.getElementById('currentShiftStatusWrap');
+  if(!wrap) return;
+  const branchId = document.getElementById('shiftBranchSelect').value;
+  if(!branchId){
+    wrap.innerHTML = `<p style="color:var(--muted); font-size:13px;">${t('noBranchFirst')}</p>`;
+    return;
+  }
+  const openShift = findOpenShiftForBranch(branchId);
+
+  if(!openShift){
+    wrap.innerHTML = `<div style="text-align:center; padding:20px 0;">
+      <p style="color:var(--muted); margin-bottom:12px;">${t('noOpenShift')}</p>
+      <button class="btn" onclick="openOpenShiftModal()">${t('openShift')}</button>
+    </div>`;
+    return;
+  }
+
+  const openedAtStr = openShift.openedAt && openShift.openedAt.toDate ? openShift.openedAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+  wrap.innerHTML = `
+    <div class="stat-card" style="margin-bottom:12px;">
+      <div class="label">${t('shiftOpenSince')}</div>
+      <div class="value" style="font-size:16px;">${openedAtStr}</div>
+    </div>
+    <p style="font-size:13px; margin:6px 0;">👤 ${t('cashierName')}: ${escapeHtml(openShift.cashierName || '—')}</p>
+    <p style="font-size:13px; margin:6px 0;">💵 ${t('openingCash')}: ${Number(openShift.openingCash||0).toFixed(2)}</p>
+    <button class="btn" style="background:var(--danger); width:100%; margin-top:10px;" onclick="openCloseShiftModal('${openShift.id}')">${t('closeShift')}</button>
+  `;
+}
+
+function openOpenShiftModal(){
+  document.getElementById('shiftCashierNameInput').value = '';
+  document.getElementById('shiftOpeningCashInput').value = '';
+  document.getElementById('openShiftModal').classList.add('active');
+}
+function closeOpenShiftModal(){
+  document.getElementById('openShiftModal').classList.remove('active');
+}
+
+async function confirmOpenShift(){
+  const branchId = document.getElementById('shiftBranchSelect').value;
+  const cashierName = document.getElementById('shiftCashierNameInput').value.trim();
+  const openingCash = Math.max(0, parseFloat(document.getElementById('shiftOpeningCashInput').value) || 0);
+
+  if(!branchId){ showToast(t('noBranchFirst')); return; }
+  if(findOpenShiftForBranch(branchId)){ showToast(t('shiftAlreadyOpen')); return; }
+
+  const btn = document.getElementById('confirmOpenShiftBtn');
+  btn.disabled = true;
+  try{
+    await shiftsCol().add({
+      branchId, cashierName, openingCash,
+      status: 'open',
+      openedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeOpenShiftModal();
+    showToast(t('shiftOpened'));
+    await loadShifts();
+  }catch(e){
+    console.error('confirmOpenShift error', e);
+    showToast(e.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// Computes what the drawer SHOULD contain: opening float + cash-method sales placed
+// since the shift opened, plus a full payment-method breakdown for the summary view.
+// Orders with no paymentMethod recorded (created before this feature existed) are
+// treated as cash, since that's the overwhelmingly common default for small restaurants.
+function computeShiftSummary(shift){
+  const openedAt = shift.openedAt && shift.openedAt.toDate ? shift.openedAt.toDate() : null;
+  const closedAtBound = shift.closedAt && shift.closedAt.toDate ? shift.closedAt.toDate() : new Date();
+
+  const shiftOrders = ordersCache.filter(o=>{
+    if(o.branchId !== shift.branchId) return false;
+    if(o.status === 'cancelled') return false;
+    const orderDate = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null;
+    if(!orderDate || !openedAt) return false;
+    return orderDate >= openedAt && orderDate <= closedAtBound;
+  });
+
+  const breakdown = { cash:0, card:0, wallet:0 };
+  shiftOrders.forEach(o=>{
+    const method = o.paymentMethod || 'cash';
+    breakdown[method] = (breakdown[method]||0) + Number(o.total||0);
+  });
+
+  const totalSales = breakdown.cash + breakdown.card + breakdown.wallet;
+  const expectedCash = Number(shift.openingCash||0) + breakdown.cash;
+
+  return { ordersCount: shiftOrders.length, breakdown, totalSales, expectedCash };
+}
+
+let closingShiftId = null;
+function openCloseShiftModal(shiftId){
+  closingShiftId = shiftId;
+  const shift = shiftsCache.find(s=> s.id === shiftId);
+  const summary = computeShiftSummary(shift);
+
+  document.getElementById('closeShiftSummary').innerHTML = `
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${t('openingCash')}</span><b>${Number(shift.openingCash||0).toFixed(2)}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${t('paymentCash')}</span><b>${summary.breakdown.cash.toFixed(2)}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${t('paymentCard')}</span><b>${summary.breakdown.card.toFixed(2)}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${t('paymentWallet')}</span><b>${summary.breakdown.wallet.toFixed(2)}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px; border-top:1px solid var(--border); padding-top:6px; margin-top:6px;"><span>${t('colOrdersCount')}</span><b>${summary.ordersCount}</b></div>
+    <div style="display:flex; justify-content:space-between;"><span>${t('expectedCash')}</span><b style="color:var(--primary);">${summary.expectedCash.toFixed(2)}</b></div>
+  `;
+  document.getElementById('shiftClosingCashInput').value = '';
+  document.getElementById('shiftDifferencePreview').textContent = '';
+  document.getElementById('closeShiftModal').classList.add('active');
+}
+function closeCloseShiftModal(){
+  document.getElementById('closeShiftModal').classList.remove('active');
+  closingShiftId = null;
+}
+function updateShiftDifferencePreview(){
+  const shift = shiftsCache.find(s=> s.id === closingShiftId);
+  if(!shift) return;
+  const summary = computeShiftSummary(shift);
+  const actual = parseFloat(document.getElementById('shiftClosingCashInput').value) || 0;
+  const diff = actual - summary.expectedCash;
+  const el = document.getElementById('shiftDifferencePreview');
+  if(diff === 0){
+    el.style.color = 'var(--ok)';
+    el.textContent = t('cashMatches');
+  } else if(diff > 0){
+    el.style.color = 'var(--ok)';
+    el.textContent = `${t('cashSurplus')}: +${diff.toFixed(2)}`;
+  } else {
+    el.style.color = 'var(--danger)';
+    el.textContent = `${t('cashShortage')}: ${diff.toFixed(2)}`;
+  }
+}
+
+async function confirmCloseShift(){
+  const shift = shiftsCache.find(s=> s.id === closingShiftId);
+  if(!shift) return;
+  const actual = parseFloat(document.getElementById('shiftClosingCashInput').value);
+  if(isNaN(actual) || actual < 0){ showToast(t('fillRequired')); return; }
+
+  const summary = computeShiftSummary(shift);
+  const difference = actual - summary.expectedCash;
+
+  const btn = document.getElementById('confirmCloseShiftBtn');
+  btn.disabled = true;
+  try{
+    await shiftsCol().doc(shift.id).update({
+      status: 'closed',
+      closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      closingCashActual: actual,
+      expectedCash: summary.expectedCash,
+      difference,
+      totalOrders: summary.ordersCount,
+      totalSales: summary.totalSales,
+      paymentBreakdown: summary.breakdown
+    });
+    closeCloseShiftModal();
+    showToast(t('shiftClosed'));
+    await loadShifts();
+  }catch(e){
+    console.error('confirmCloseShift error', e);
+    showToast(e.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function renderShiftsHistoryTable(){
+  const table = document.getElementById('shiftsHistoryTable');
+  const empty = document.getElementById('shiftsHistoryEmpty');
+  const tbody = document.getElementById('shiftsHistoryTbody');
+  if(!table) return;
+
+  const closedShifts = shiftsCache.filter(s=> s.status === 'closed');
+  if(closedShifts.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = closedShifts.map(s=>{
+    const openedStr = s.openedAt && s.openedAt.toDate ? s.openedAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+    const closedStr = s.closedAt && s.closedAt.toDate ? s.closedAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+    const diff = s.difference || 0;
+    const diffColor = diff === 0 ? 'var(--ok)' : (diff > 0 ? 'var(--ok)' : 'var(--danger)');
+    const diffText = diff === 0 ? '0.00' : (diff > 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2));
+    return `<tr>
+      <td>${escapeHtml(branchNameById(s.branchId))}</td>
+      <td>${escapeHtml(s.cashierName||'—')}</td>
+      <td>${openedStr}</td>
+      <td>${closedStr}</td>
+      <td>${Number(s.totalSales||0).toFixed(2)}</td>
+      <td style="color:${diffColor}; font-weight:600;">${diffText}</td>
+      <td class="row-actions">
+        <button onclick="printShiftReceipt('${s.id}')" title="${t('print')}">🖨️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function printShiftReceipt(shiftId){
+  const s = shiftsCache.find(x=> x.id === shiftId);
+  if(!s){ showToast(t('nothingToExport')); return; }
+  const openedStr = s.openedAt && s.openedAt.toDate ? s.openedAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+  const closedStr = s.closedAt && s.closedAt.toDate ? s.closedAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+  const bd = s.paymentBreakdown || { cash:0, card:0, wallet:0 };
+  const diff = s.difference || 0;
+
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><meta charset="UTF-8"><title>${t('shiftReceipt')}</title>
+    <style>
+      body{font-family:Arial, sans-serif; direction:${currentLang==='ar'?'rtl':'ltr'}; max-width:340px; margin:20px auto; font-size:13px;}
+      h2{text-align:center; margin-bottom:2px;}
+      .sub{text-align:center; color:#666; margin-bottom:14px;}
+      .row{display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dashed #ccc;}
+      .row b{font-weight:700;}
+      .total{font-size:15px; margin-top:8px;}
+    </style>
+  </head><body>
+    <h2>🧾 ${t('shiftReceipt')}</h2>
+    <div class="sub">${escapeHtml(branchNameById(s.branchId))} — ${escapeHtml(s.cashierName||'')}</div>
+    <div class="row"><span>${t('shiftOpenedAt')}</span><b>${openedStr}</b></div>
+    <div class="row"><span>${t('shiftClosedAt')}</span><b>${closedStr}</b></div>
+    <div class="row"><span>${t('openingCash')}</span><b>${Number(s.openingCash||0).toFixed(2)}</b></div>
+    <div class="row"><span>${t('paymentCash')}</span><b>${Number(bd.cash||0).toFixed(2)}</b></div>
+    <div class="row"><span>${t('paymentCard')}</span><b>${Number(bd.card||0).toFixed(2)}</b></div>
+    <div class="row"><span>${t('paymentWallet')}</span><b>${Number(bd.wallet||0).toFixed(2)}</b></div>
+    <div class="row"><span>${t('colOrdersCount')}</span><b>${s.totalOrders||0}</b></div>
+    <div class="row total"><span>${t('colTotalSales')}</span><b>${Number(s.totalSales||0).toFixed(2)}</b></div>
+    <div class="row"><span>${t('expectedCash')}</span><b>${Number(s.expectedCash||0).toFixed(2)}</b></div>
+    <div class="row"><span>${t('actualCashCount')}</span><b>${Number(s.closingCashActual||0).toFixed(2)}</b></div>
+    <div class="row total" style="color:${diff===0?'#16a34a':(diff>0?'#16a34a':'#dc2626')};"><span>${t('cashDifference')}</span><b>${diff>0?'+':''}${diff.toFixed(2)}</b></div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 300);
+}
+
 async function deductStockForOrder(order){
   const deductions = {}; // { ingredientId: totalQtyToDeduct }
   const itemsWithoutBom = [];
@@ -3471,6 +4470,7 @@ function openOrderModal(){
   document.getElementById('orderCustomerNameInput').value = '';
   document.getElementById('orderCustomerPhoneInput').value = '';
   document.getElementById('orderCouponInput').value = '';
+  document.getElementById('orderPaymentMethodInput').value = 'cash';
   document.getElementById('couponFeedback').textContent = '';
   document.getElementById('orderDeliveryAddressInput').value = '';
   document.getElementById('orderDeliveryFeeInput').value = '';
@@ -3726,6 +4726,7 @@ async function saveOrder(){
   const orderType = document.getElementById('orderTypeInput').value;
   const customerName = document.getElementById('orderCustomerNameInput').value.trim();
   const customerPhone = document.getElementById('orderCustomerPhoneInput').value.trim();
+  const paymentMethod = document.getElementById('orderPaymentMethodInput').value;
 
   const entries = Object.entries(orderItemsSelection);
   if(entries.length === 0){
@@ -3766,7 +4767,7 @@ async function saveOrder(){
   saveBtn.disabled = true;
   try{
     await ordersCol().add({
-      branchId, orderType, customerName, customerPhone, items,
+      branchId, orderType, customerName, customerPhone, paymentMethod, items,
       subtotal, discount, deliveryFee, total,
       ...deliveryData,
       couponCode: appliedCoupon ? appliedCoupon.code : null,
@@ -5098,7 +6099,9 @@ const ALL_DATA_COLLECTIONS = [
   { key:'expenses', col:expensesCol },
   { key:'purchaseOrders', col:poCol },
   { key:'deliveryZones', col:deliveryZonesCol },
-  { key:'drivers', col:driversCol }
+  { key:'drivers', col:driversCol },
+  { key:'shifts', col:shiftsCol },
+  { key:'customerContacts', col:customerContactsCol }
 ];
 
 // Firestore Timestamp fields don't survive JSON.stringify/parse directly — serialize them
@@ -5215,6 +6218,8 @@ async function restoreAllData(){
     await loadExpenses();
     await loadDeliveryZones();
     await loadDrivers();
+    await loadShifts();
+    await loadCustomerContacts();
     startOrdersListener();
     showModule('dashboard');
   }catch(e){
@@ -5257,6 +6262,8 @@ async function clearAllData(){
     await loadExpenses();
     await loadDeliveryZones();
     await loadDrivers();
+    await loadShifts();
+    await loadCustomerContacts();
     startOrdersListener();
     showModule('dashboard');
   }catch(e){
