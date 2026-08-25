@@ -4025,15 +4025,26 @@ async function saveAssignedDriver(){
   if(!assigningDriverOrderId) return;
   const driverId = document.getElementById('assignDriverSelect').value;
   const driver = driverId ? driversCache.find(d=> d.id === driverId) : null;
+  const order = ordersCache.find(o=> o.id === assigningDriverOrderId);
+  const updateData = {
+    driverId: driverId || null,
+    driverName: driver ? driver.name : null
+  };
+  // Assigning an actual driver means the order is effectively out for delivery — flip the
+  // status in the same write so it can never lag behind the driver-track.html link being
+  // sent. Without this, a driver assigned while the order is still "ready" (before the
+  // restaurant separately taps "بدأ التوصيل") would hit a Firestore permission-denied
+  // when tapping "تم التوصيل للعميل" later, since that rule only allows the delivered
+  // transition from out_for_delivery. Only bump it forward from ready; leave other
+  // statuses (or clearing the assignment) untouched.
+  if(driver && order && order.status === 'ready'){
+    updateData.status = 'out_for_delivery';
+  }
   try{
-    await ordersCol().doc(assigningDriverOrderId).update({
-      driverId: driverId || null,
-      driverName: driver ? driver.name : null
-    });
+    await ordersCol().doc(assigningDriverOrderId).update(updateData);
     // Only fire WhatsApp notifications when an actual driver was newly picked, not when
     // clearing the assignment back to "unassigned".
     if(driver){
-      const order = ordersCache.find(o=> o.id === assigningDriverOrderId);
       if(order) notifyDriverAndCustomerWhatsapp(order, driver);
     }
     showToast(t('driverAssigned'));
