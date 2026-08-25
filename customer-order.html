@@ -134,6 +134,10 @@
       <label>العنوان بالتفصيل</label>
       <textarea id="custAddress" placeholder="اسم الشارع، رقم العمارة، الدور، علامة مميزة..."></textarea>
     </div>
+    <div class="field">
+      <button type="button" id="shareLocationBtn" onclick="shareCustomerLocation()" style="width:100%; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; padding:11px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">📍 مشاركة موقعي الحالي (يساعد الدليفري يوصلك أسرع)</button>
+      <div id="locationStatus" style="font-size:12px; color:var(--muted); margin-top:6px; display:none;"></div>
+    </div>
     <div class="err-text" id="formErr">من فضلك املأ كل الحقول المطلوبة</div>
 
     <div class="field">
@@ -202,6 +206,39 @@ let publicSettings = {};
 let branchName = '';
 let cart = {}; // productId -> qty
 let paymentMethod = 'cod';
+let sharedLocation = null; // { lat, lng } once the customer taps "share my location"
+
+// Optional — plain browser Geolocation, no API key needed. This is what lets the
+// staff-side tracking map show an actual customer pin instead of just free-text address.
+// If the customer declines/it fails, the order still goes through fine without it.
+function shareCustomerLocation(){
+  const statusEl = document.getElementById('locationStatus');
+  const btn = document.getElementById('shareLocationBtn');
+  if(!navigator.geolocation){
+    statusEl.textContent = 'المتصفح ده مش بيدعم تحديد الموقع';
+    statusEl.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '📍 جاري تحديد موقعك...';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      sharedLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      btn.textContent = '✅ تم مشاركة موقعك';
+      btn.style.background = '#dcfce7';
+      btn.style.color = '#166534';
+      btn.style.borderColor = '#bbf7d0';
+      statusEl.style.display = 'none';
+    },
+    err=>{
+      btn.disabled = false;
+      btn.textContent = '📍 مشاركة موقعي الحالي (يساعد الدليفري يوصلك أسرع)';
+      statusEl.textContent = 'مقدرناش نحدد موقعك — تأكد إنك سامح للمتصفح بالوصول للموقع. مش مشكلة، اكتب العنوان بالتفصيل بس.';
+      statusEl.style.display = 'block';
+    },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+}
 
 function escapeHtml(str){
   return String(str==null?'':str).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -507,6 +544,10 @@ async function submitCustomerOrder(){
       status: paymentMethod === 'bank_transfer' ? 'pending_payment' : 'pending',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
+    if(sharedLocation){
+      orderData.deliveryLat = sharedLocation.lat;
+      orderData.deliveryLng = sharedLocation.lng;
+    }
 
     await db.collection('restaurants').doc(restaurantId).collection('orders').add(orderData);
 
