@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>مشاركة موقعي - توصيل الطلب</title>
+<style>
+  :root{ --primary:#0f766e; --primary-dark:#0d5f58; --bg:#f4f6f7; --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --danger:#dc2626; --ok:#16a34a; }
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif; background:var(--bg); color:var(--text); margin:0; padding:16px; min-height:100vh;}
+  .hidden{display:none !important;}
+  .center-msg{text-align:center; padding:60px 20px; color:var(--muted);}
+  .card{background:#fff; border-radius:14px; padding:20px; max-width:480px; margin:0 auto 16px; box-shadow:0 1px 6px rgba(0,0,0,.05);}
+  .card h1{font-size:17px; margin:0 0 4px;}
+  .card .sub{color:var(--muted); font-size:13px; margin:0 0 16px;}
+  .info-line{display:flex; gap:8px; font-size:14px; padding:6px 0; border-bottom:1px solid var(--border);}
+  .info-line:last-child{border-bottom:none;}
+  .info-line b{min-width:70px; color:var(--muted); font-weight:600; font-size:12px;}
+  .status-pill{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:20px; font-size:13px; font-weight:600; margin-bottom:14px;}
+  .status-pill.off{background:#fef2f2; color:var(--danger);}
+  .status-pill.on{background:#f0fdf4; color:var(--ok);}
+  .dot{width:8px; height:8px; border-radius:50%; background:currentColor;}
+  .dot.on{animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%{opacity:1;}50%{opacity:.3;}100%{opacity:1;}}
+  .share-btn{width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:10px;}
+  .share-btn.start{background:var(--primary); color:#fff;}
+  .share-btn.stop{background:#fee2e2; color:var(--danger);}
+  .arrived-btn{width:100%; padding:13px; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; background:#16a34a; color:#fff;}
+  .arrived-btn:disabled{opacity:.6;}
+  .err-msg{background:#fef2f2; color:var(--danger); padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:14px;}
+</style>
+</head>
+<body>
+
+<div id="loadingView" class="center-msg">جاري التحميل...</div>
+<div id="errorView" class="center-msg hidden">⚠️ رابط غير صالح</div>
+
+<div id="app" class="hidden">
+  <div class="card">
+    <h1>🛵 توصيل الطلب #<span id="orderIdShort"></span></h1>
+    <p class="sub">فعّل مشاركة الموقع عشان المطعم يقدر يتابع وصولك للعميل لحظة بلحظة</p>
+    <div id="statusPill" class="status-pill off"><span class="dot"></span> <span id="statusText">المشاركة متوقفة</span></div>
+    <div id="permErr" class="err-msg hidden"></div>
+    <button class="share-btn start" id="shareBtn" onclick="toggleSharing()">▶️ بدء مشاركة الموقع</button>
+  </div>
+
+  <div class="card">
+    <h1 style="font-size:15px;">تفاصيل التوصيل</h1>
+    <div class="info-line"><b>العميل</b><span id="infoName"></span></div>
+    <div class="info-line"><b>الموبايل</b><span id="infoPhone" dir="ltr"></span></div>
+    <div class="info-line"><b>العنوان</b><span id="infoAddress"></span></div>
+    <div class="info-line"><b>المبلغ</b><span id="infoTotal"></span></div>
+  </div>
+
+  <div class="card">
+    <button class="arrived-btn" id="arrivedBtn" onclick="markDelivered()">✅ تم التوصيل للعميل</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ---------------------------------------------------------------------------
+   Standalone driver page. Opened via ?r=<restaurantId>&o=<orderId> — link sent to the
+   driver over WhatsApp the moment they're assigned to a delivery order. No login: the
+   driver taps "start sharing" and the browser's Geolocation API (watchPosition) pushes
+   their coordinates to the order doc every ~8s while this tab stays open. Anonymous
+   writes are scoped tightly by Firestore rules to only the driverLat/driverLng fields
+   (and a one-way ready/out_for_delivery -> delivered status flip) — see the rules
+   snippet shared alongside this file.
+--------------------------------------------------------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyABB8IqmJGLDT8TbtZxK57KbPachPq3_wM",
+  authDomain: "restaurant-platform-b01a6.firebaseapp.com",
+  projectId: "restaurant-platform-b01a6",
+  storageBucket: "restaurant-platform-b01a6.firebasestorage.app",
+  messagingSenderId: "344618338704",
+  appId: "1:344618338704:web:6807d84be9e2007baccb15"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const params = new URLSearchParams(window.location.search);
+const restaurantId = params.get('r');
+const orderId = params.get('o');
+const orderRef = restaurantId && orderId ? db.collection('restaurants').doc(restaurantId).collection('orders').doc(orderId) : null;
+
+let watchId = null;
+let lastSentAt = 0;
+const SEND_INTERVAL_MS = 8000;
+
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function init(){
+  if(!orderRef){ document.getElementById('loadingView').classList.add('hidden'); document.getElementById('errorView').classList.remove('hidden'); return; }
+  // The rules only grant this anonymous page WRITE access, not read — so we can't fetch
+  // the order details to display them here without also opening up public read on all
+  // orders (a bigger privacy trade-off than it's worth). Instead the driver's WhatsApp
+  // message already contains the order summary; this page focuses on the one thing that
+  // actually needs to happen here: sharing live location.
+  document.getElementById('orderIdShort').textContent = orderId.slice(0,6).toUpperCase();
+  document.getElementById('infoName').textContent = params.get('name') || '—';
+  document.getElementById('infoPhone').textContent = params.get('phone') || '—';
+  document.getElementById('infoAddress').textContent = params.get('addr') || '—';
+  document.getElementById('infoTotal').textContent = params.get('total') ? params.get('total')+' ج.م' : '—';
+  document.getElementById('loadingView').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+}
+
+function toggleSharing(){
+  if(watchId === null) startSharing();
+  else stopSharing();
+}
+
+function startSharing(){
+  if(!navigator.geolocation){
+    showPermError('المتصفح ده مش بيدعم تحديد الموقع');
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(
+    pos=>{
+      const now = Date.now();
+      if(now - lastSentAt < SEND_INTERVAL_MS) return;
+      lastSentAt = now;
+      sendLocation(pos.coords.latitude, pos.coords.longitude);
+    },
+    err=>{
+      showPermError('اتقفلت صلاحية الموقع أو حصل خطأ — افتح إعدادات المتصفح وسمح بالوصول للموقع.');
+      stopSharing();
+    },
+    { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
+  );
+  document.getElementById('permErr').classList.add('hidden');
+  document.getElementById('shareBtn').textContent = '⏹️ إيقاف مشاركة الموقع';
+  document.getElementById('shareBtn').className = 'share-btn stop';
+  document.getElementById('statusPill').className = 'status-pill on';
+  document.getElementById('statusPill').querySelector('.dot').classList.add('on');
+  document.getElementById('statusText').textContent = 'جاري مشاركة موقعك الآن';
+}
+
+function stopSharing(){
+  if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  document.getElementById('shareBtn').textContent = '▶️ بدء مشاركة الموقع';
+  document.getElementById('shareBtn').className = 'share-btn start';
+  document.getElementById('statusPill').className = 'status-pill off';
+  document.getElementById('statusPill').querySelector('.dot').classList.remove('on');
+  document.getElementById('statusText').textContent = 'المشاركة متوقفة';
+}
+
+function showPermError(msg){
+  const el = document.getElementById('permErr');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+async function sendLocation(lat, lng){
+  try{
+    await orderRef.update({
+      driverLat: lat,
+      driverLng: lng,
+      driverLocationUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){
+    console.error('sendLocation error', e);
+    showPermError('حصل خطأ في إرسال الموقع، تأكد من الاتصال بالإنترنت.');
+  }
+}
+
+async function markDelivered(){
+  const btn = document.getElementById('arrivedBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري التأكيد...';
+  try{
+    await orderRef.update({ status: 'delivered' });
+    stopSharing();
+    btn.textContent = '✅ تم التسجيل، شكرًا!';
+  }catch(e){
+    console.error('markDelivered error', e);
+    btn.disabled = false;
+    btn.textContent = '✅ تم التوصيل للعميل';
+    showPermError('حصل خطأ أثناء تأكيد التوصيل، جرب تاني.');
+  }
+}
+
+window.addEventListener('beforeunload', stopSharing);
+
+init();
+</script>
+</body>
+</html>
