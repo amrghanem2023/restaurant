@@ -53,7 +53,13 @@
   </div>
 
   <div class="card">
-    <button class="arrived-btn" id="arrivedBtn" onclick="markDelivered()">✅ تم التوصيل للعميل</button>
+    <button class="arrived-btn" id="arrivedBtn" onclick="markDelivered()" disabled>✅ تم التوصيل للعميل</button>
+    <div id="cashConfirmBox" class="hidden" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <label style="display:flex; align-items:flex-start; gap:10px; font-size:13px; cursor:pointer; line-height:1.6;">
+        <input type="checkbox" id="cashConfirmCheck" onchange="onCashConfirmChange()" style="width:20px; height:20px; margin-top:1px; flex-shrink:0;">
+        <span>💵 أكّد إنك استلمت <b id="cashConfirmAmount"></b> جنيه نقدًا من العميل</span>
+      </label>
+    </div>
   </div>
 </div>
 
@@ -66,8 +72,14 @@
    driver taps "start sharing" and the browser's Geolocation API (watchPosition) pushes
    their coordinates to the order doc every ~8s while this tab stays open. Anonymous
    writes are scoped tightly by Firestore rules to only the driverLat/driverLng fields
-   (and a one-way ready/out_for_delivery -> delivered status flip) — see the rules
-   snippet shared alongside this file.
+   (and a one-way ready/out_for_delivery -> delivered status flip, optionally paired
+   with cashCollected) — see the rules snippet shared alongside this file.
+
+   Closing out the order ("تم التوصيل") is deliberately driver-only now — the
+   restaurant dashboard no longer has its own "delivered" button for orders that are
+   out for delivery, since it's the driver who's physically there to confirm the
+   handoff. For COD orders (pm != 'bank_transfer' in the query string), the driver
+   must also tick a "I collected the cash" checkbox before that button unlocks.
 --------------------------------------------------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyABB8IqmJGLDT8TbtZxK57KbPachPq3_wM",
@@ -88,6 +100,7 @@ const orderRef = restaurantId && orderId ? db.collection('restaurants').doc(rest
 let watchId = null;
 let lastSentAt = 0;
 const SEND_INTERVAL_MS = 8000;
+let isCod = true;
 
 function escapeHtml(str){
   return String(str==null?'':str).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -105,8 +118,24 @@ async function init(){
   document.getElementById('infoPhone').textContent = params.get('phone') || '—';
   document.getElementById('infoAddress').textContent = params.get('addr') || '—';
   document.getElementById('infoTotal').textContent = params.get('total') ? params.get('total')+' ج.م' : '—';
+
+  // Cash-on-delivery orders need the driver to actively confirm they collected the
+  // money before the order can be closed out — bank-transfer orders are already paid,
+  // so the "تم التوصيل" button there just works without a checkbox gate.
+  isCod = (params.get('pm') || 'cod') !== 'bank_transfer';
+  if(isCod){
+    document.getElementById('cashConfirmBox').classList.remove('hidden');
+    document.getElementById('cashConfirmAmount').textContent = params.get('total') || '0';
+  } else {
+    document.getElementById('arrivedBtn').disabled = false;
+  }
+
   document.getElementById('loadingView').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+}
+
+function onCashConfirmChange(){
+  document.getElementById('arrivedBtn').disabled = !document.getElementById('cashConfirmCheck').checked;
 }
 
 function toggleSharing(){
@@ -173,7 +202,13 @@ async function markDelivered(){
   btn.disabled = true;
   btn.textContent = 'جاري التأكيد...';
   try{
-    await orderRef.update({ status: 'delivered' });
+    const updateData = { status: 'delivered' };
+    // Only ever send cashCollected on COD orders — the Firestore rule for this anonymous
+    // write only allows ['status','cashCollected'] as the changed keys, so sending it on
+    // a bank-transfer order (where it's meaningless) is avoided rather than relied on the
+    // rule to silently ignore.
+    if(isCod) updateData.cashCollected = true;
+    await orderRef.update(updateData);
     stopSharing();
     btn.textContent = '✅ تم التسجيل، شكرًا!';
   }catch(e){
