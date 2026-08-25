@@ -2078,6 +2078,8 @@ const translations = {
     enter:"دخول", kitchenModeTitle:"🍳 شاشة المطبخ", exitKitchenMode:"🔒 خروج",
     kitchenNoOrders:"مفيش طلبات محتاجة تجهيز دلوقتي", prepMinutes:"وقت التجهيز (دقيقة)",
     markOrderReady:"تم التجهيز",
+    kitchenTimerElapsed:"الوقت من ساعة ما اتبعت للمطبخ", kitchenTimerNoEstimate:"محدّدش وقت تجهيز",
+    kitchenTimerOverdue:"⚠️ اتأخر عن الوقت المحدد", actualPrepTime:"⏱️ زمن التجهيز الفعلي",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
     pinMustBe4:"كود الدخول لازم يكون 4 أرقام على الأقل",
     couponList:"قائمة الكوبونات", addCoupon:"+ إضافة كوبون", noCouponsYet:"لا توجد كوبونات بعد",
@@ -2313,6 +2315,8 @@ const translations = {
     enter:"Enter", kitchenModeTitle:"🍳 Kitchen Display", exitKitchenMode:"🔒 Exit",
     kitchenNoOrders:"No orders need preparing right now", prepMinutes:"Prep time (min)",
     markOrderReady:"Ready",
+    kitchenTimerElapsed:"Time since sent to kitchen", kitchenTimerNoEstimate:"No prep time set",
+    kitchenTimerOverdue:"⚠️ Past the estimated time", actualPrepTime:"⏱️ Actual prep time",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
     pinMustBe4:"Login code must be at least 4 digits",
     couponList:"Coupons List", addCoupon:"+ Add Coupon", noCouponsYet:"No coupons yet",
@@ -3872,6 +3876,7 @@ function renderOrderCard(o){
     ${o.couponCode ? `<div style="font-size:11px; color:var(--ok); margin-bottom:4px;">🏷️ ${escapeHtml(o.couponCode)}</div>` : ''}
     ${o.paymentMethod === 'bank_transfer' && o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" style="font-size:11px; display:block; margin-bottom:4px;">🧾 ${t('viewReceipt')}</a>` : ''}
     ${o.status === 'preparing' && o.estimatedPrepMinutes ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⏱️ ${t('prepMinutes')}: ${o.estimatedPrepMinutes}</div>` : ''}
+    ${o.preparingStartedAt && o.readyAt ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${t('actualPrepTime')}: ${formatDurationMinutes(toJsDate(o.preparingStartedAt), toJsDate(o.readyAt))}</div>` : ''}
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
@@ -3921,7 +3926,18 @@ async function updateOrderStatus(orderId, newStatus){
         return;
       }
     }
-    await ordersCol().doc(orderId).update({ status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    // preparingStartedAt/readyAt capture the real moments the order entered the kitchen
+    // and left it "جاهز", independent of updatedAt (which gets overwritten on every
+    // later status change). These are what the kitchen countdown timer and the actual
+    // prep-duration display are built on.
+    const statusPayload = { status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    if(newStatus === 'preparing'){
+      statusPayload.preparingStartedAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    if(newStatus === 'ready'){
+      statusPayload.readyAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    await ordersCol().doc(orderId).update(statusPayload);
 
     // Whenever an order moves into "preparing" (whether it came from a staff-created
     // pending order or an online order whose bank transfer was just confirmed), ping the
@@ -4412,10 +4428,12 @@ function enterKitchenMode(staffMember){
   kitchenModeActive = true;
   document.getElementById('kitchenModeScreen').style.display = 'block';
   renderKitchenMode();
+  startKitchenTimerLoop();
 }
 function exitKitchenMode(){
   kitchenModeActive = false;
   document.getElementById('kitchenModeScreen').style.display = 'none';
+  stopKitchenTimerLoop();
 }
 
 // Kitchen sees only what it needs to act on: orders already being prepared. Payment
@@ -4444,12 +4462,18 @@ function renderKitchenMode(){
       ? `<span class="stock-badge" style="background:#dcfce7; color:#166534;">💳 ${t('paymentBankTransfer')} ✅</span>`
       : `<span class="stock-badge" style="background:#fef9c3; color:#854d0e;">💵 ${t('paymentCod')}</span>`;
     const minutesVal = o.estimatedPrepMinutes || '';
+    // The countdown itself is rendered live by tickKitchenTimers() every second — this
+    // is just the initial placeholder markup, keyed by a stable per-order id so the
+    // ticker can find and update it without a full re-render (which would blow away
+    // focus on the prep-minutes input while someone's typing in it).
     return `<div style="background:#fff; border-radius:12px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-inline-start:4px solid var(--primary);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <b style="font-size:15px;">#${o.id.slice(0,6).toUpperCase()}</b>
         ${paymentBadge}
       </div>
       <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">🏢 ${escapeHtml(branch?branch.name:'')} · ${escapeHtml(o.customerName||'')}</div>
+      <div id="kitchenTimer-${o.id}" style="text-align:center; font-size:26px; font-weight:800; letter-spacing:1px; padding:10px 0; margin-bottom:6px; border-radius:8px; background:#f4f6f7; color:var(--text);" data-order-id="${o.id}">--:--</div>
+      <div id="kitchenTimerLabel-${o.id}" style="text-align:center; font-size:11px; color:var(--muted); margin-bottom:10px;">${t('kitchenTimerElapsed')}</div>
       <div style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:6px 0; margin-bottom:10px;">${itemsHtml}</div>
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
         <label style="font-size:12px; color:var(--muted); white-space:nowrap;">${t('prepMinutes')}</label>
@@ -4458,6 +4482,110 @@ function renderKitchenMode(){
       <button class="btn" style="width:100%;" onclick="markOrderReadyFromKitchen('${o.id}')">✅ ${t('markOrderReady')}</button>
     </div>`;
   }).join('');
+
+  tickKitchenTimers(); // paint immediately instead of waiting up to 1s for the first tick
+}
+
+/* ---------- Kitchen live countdown + overdue alarm ----------
+   Runs only while kitchenModeActive, ticking every second. Each order card shows a
+   live MM:SS. If estimatedPrepMinutes is set, it counts DOWN from that many minutes
+   (measured from the real preparingStartedAt moment, not an estimate) and flips to a
+   red "overdue" count-up once it hits zero, beeping once at zero then again every
+   60s until the order leaves "preparing" — that's the "منبه" the kitchen actually
+   needs, since a silent overdue timer is easy to miss on a busy screen. Orders with
+   no estimatedPrepMinutes just show a plain count-up with no alarm — there's no
+   target to be late against. */
+let kitchenTimerInterval = null;
+let kitchenTimerState = {}; // orderId -> { lastBeepSecond }
+
+function startKitchenTimerLoop(){
+  if(kitchenTimerInterval) return;
+  kitchenTimerInterval = setInterval(tickKitchenTimers, 1000);
+}
+function stopKitchenTimerLoop(){
+  if(kitchenTimerInterval){ clearInterval(kitchenTimerInterval); kitchenTimerInterval = null; }
+  kitchenTimerState = {};
+}
+
+function formatMmSs(totalSeconds){
+  const sign = totalSeconds < 0 ? '-' : '';
+  const s = Math.abs(Math.round(totalSeconds));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${sign}${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+function tickKitchenTimers(){
+  if(!kitchenModeActive) return;
+  const now = Date.now();
+  ordersCache.filter(o=> o.status === 'preparing').forEach(o=>{
+    const el = document.getElementById(`kitchenTimer-${o.id}`);
+    const labelEl = document.getElementById(`kitchenTimerLabel-${o.id}`);
+    if(!el) return;
+    // Fall back to createdAt for orders already mid-flight when this feature shipped
+    // (no preparingStartedAt yet) — still gives a real elapsed time, just measured from
+    // order creation instead of the moment it was sent to the kitchen.
+    const start = toJsDate(o.preparingStartedAt) || toJsDate(o.createdAt);
+    if(!start){ el.textContent = '--:--'; return; }
+    const elapsedSeconds = (now - start.getTime()) / 1000;
+
+    if(o.estimatedPrepMinutes){
+      const targetSeconds = o.estimatedPrepMinutes * 60;
+      const remaining = targetSeconds - elapsedSeconds;
+      if(remaining >= 0){
+        el.textContent = formatMmSs(remaining);
+        el.style.background = remaining <= 60 ? '#fef9c3' : '#f4f6f7';
+        el.style.color = remaining <= 60 ? '#854d0e' : 'var(--text)';
+        if(labelEl) labelEl.textContent = t('kitchenTimerElapsed');
+      } else {
+        const overdueSeconds = Math.abs(remaining);
+        el.textContent = '+' + formatMmSs(overdueSeconds);
+        el.style.background = '#fef2f2';
+        el.style.color = 'var(--danger)';
+        if(labelEl) labelEl.textContent = t('kitchenTimerOverdue');
+
+        // Beep the moment it crosses zero, then again every 60s while still overdue —
+        // guarded so a single tick only ever fires once per whole-second-of-overdue.
+        const state = kitchenTimerState[o.id] || (kitchenTimerState[o.id] = { lastBeepSecond: -1 });
+        const overdueWhole = Math.floor(overdueSeconds);
+        if(overdueWhole % 60 === 0 && state.lastBeepSecond !== overdueWhole){
+          state.lastBeepSecond = overdueWhole;
+          playKitchenAlarmBeep();
+        }
+      }
+    } else {
+      // No target set — just a plain stopwatch, no alarm.
+      el.textContent = formatMmSs(elapsedSeconds);
+      el.style.background = '#f4f6f7';
+      el.style.color = 'var(--text)';
+      if(labelEl) labelEl.textContent = t('kitchenTimerNoEstimate');
+    }
+  });
+}
+
+// Short triple-beep built with the Web Audio API — no external sound file needed, so
+// it works offline and doesn't depend on any asset shipping alongside this HTML file.
+let kitchenAlarmAudioCtx = null;
+function playKitchenAlarmBeep(){
+  try{
+    if(!kitchenAlarmAudioCtx) kitchenAlarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = kitchenAlarmAudioCtx;
+    if(ctx.state === 'suspended') ctx.resume();
+    [0, 0.18, 0.36].forEach(delay=>{
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const startAt = ctx.currentTime + delay;
+      osc.start(startAt);
+      osc.stop(startAt + 0.14);
+    });
+  }catch(e){
+    console.error('playKitchenAlarmBeep error', e);
+  }
 }
 
 async function updateOrderPrepMinutes(orderId, minutes){
@@ -4472,6 +4600,7 @@ async function updateOrderPrepMinutes(orderId, minutes){
 
 async function markOrderReadyFromKitchen(orderId){
   await updateOrderStatus(orderId, 'ready');
+  delete kitchenTimerState[orderId]; // clear alarm state so a later re-prep of this order (rare) starts fresh
 }
 
 /* ---------- Customers (derived from order history, not a separate collection) ----------
@@ -4596,6 +4725,17 @@ async function logCustomerContact(phone, contactType){
 function toJsDate(v){
   if(!v) return null;
   return typeof v.toDate === 'function' ? v.toDate() : v;
+}
+
+// Formats the gap between two JS Dates as "Xد" or "Xس Yد" — used to show the real
+// (not estimated) prep duration once an order has both a preparingStartedAt and readyAt.
+function formatDurationMinutes(start, end){
+  if(!start || !end) return '';
+  const totalMinutes = Math.max(0, Math.round((end - start) / 60000));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if(h > 0) return currentLang==='ar' ? `${h}س ${m}د` : `${h}h ${m}m`;
+  return currentLang==='ar' ? `${m}د` : `${m}m`;
 }
 
 function computeCustomersFromOrders(){
