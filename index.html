@@ -2080,6 +2080,8 @@ const translations = {
     markOrderReady:"تم التجهيز",
     kitchenTimerElapsed:"الوقت من ساعة ما اتبعت للمطبخ", kitchenTimerNoEstimate:"محدّدش وقت تجهيز",
     kitchenTimerOverdue:"⚠️ اتأخر عن الوقت المحدد", actualPrepTime:"⏱️ زمن التجهيز الفعلي",
+    waitingDriverConfirm:"في انتظار المندوب يأكد التسليم", cashCollectedYes:"💵 المندوب استلم الفلوس",
+    cashCollectedNo:"⚠️ لسه محدّدش إن المندوب استلم الفلوس",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
     pinMustBe4:"كود الدخول لازم يكون 4 أرقام على الأقل",
     couponList:"قائمة الكوبونات", addCoupon:"+ إضافة كوبون", noCouponsYet:"لا توجد كوبونات بعد",
@@ -2317,6 +2319,8 @@ const translations = {
     markOrderReady:"Ready",
     kitchenTimerElapsed:"Time since sent to kitchen", kitchenTimerNoEstimate:"No prep time set",
     kitchenTimerOverdue:"⚠️ Past the estimated time", actualPrepTime:"⏱️ Actual prep time",
+    waitingDriverConfirm:"Waiting for the driver to confirm delivery", cashCollectedYes:"💵 Driver collected cash",
+    cashCollectedNo:"⚠️ Cash collection not yet confirmed",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
     pinMustBe4:"Login code must be at least 4 digits",
     couponList:"Coupons List", addCoupon:"+ Add Coupon", noCouponsYet:"No coupons yet",
@@ -3834,7 +3838,12 @@ function renderOrderCard(o){
       ? `<button class="primary-action" onclick="updateOrderStatus('${o.id}','out_for_delivery')">${t('markOutForDelivery')}</button>`
       : `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>`;
   } else if(o.status === 'out_for_delivery'){
-    actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>`;
+    // Deliberately no staff-side "delivered" button here anymore — only the driver, from
+    // driver-track.html, can close a delivery order out now (and only after confirming
+    // cash collection on COD orders). This is intentional: it's the driver who's
+    // physically there to confirm the handoff and the money, not staff sitting at the
+    // dashboard. See notifyDriverAndCustomerWhatsapp / driver-track.html.
+    actionsHtml = `<div style="font-size:11px; color:var(--muted); text-align:center; padding:8px 0;">⏳ ${t('waitingDriverConfirm')}</div>`;
   }
 
   // Delivery-specific info block: driver, platform source, delivery fee/address —
@@ -3877,6 +3886,7 @@ function renderOrderCard(o){
     ${o.paymentMethod === 'bank_transfer' && o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" style="font-size:11px; display:block; margin-bottom:4px;">🧾 ${t('viewReceipt')}</a>` : ''}
     ${o.status === 'preparing' && o.estimatedPrepMinutes ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⏱️ ${t('prepMinutes')}: ${o.estimatedPrepMinutes}</div>` : ''}
     ${o.preparingStartedAt && o.readyAt ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${t('actualPrepTime')}: ${formatDurationMinutes(toJsDate(o.preparingStartedAt), toJsDate(o.readyAt))}</div>` : ''}
+    ${isDelivery && o.status === 'delivered' && o.paymentMethod !== 'bank_transfer' ? `<div style="font-size:11px; margin-bottom:4px; color:${o.cashCollected ? 'var(--ok)' : 'var(--danger)'};">${o.cashCollected ? t('cashCollectedYes') : t('cashCollectedNo')}</div>` : ''}
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
@@ -3990,8 +4000,11 @@ async function notifyKitchenWhatsapp(order){
 // Same best-effort click-to-chat approach for the driver + customer once a driver is
 // assigned to a delivery order.
 // Same ?r=&o= convention as rate-order.html, plus a few plain query params (name/phone/
-// addr/total) purely for display — the driver page can't read the order doc (see its
-// own comments), so the WhatsApp link itself carries what the driver needs to see.
+// addr/total/pm) purely for display — the driver page can't read the order doc (see its
+// own comments), so the WhatsApp link itself carries what the driver needs to see. pm
+// (payment method) additionally tells driver-track.html whether to ask the driver to
+// confirm cash collection before closing the order — only relevant for COD, since
+// bank-transfer orders are already paid.
 function getDriverTrackUrl(order){
   const base = window.location.origin + window.location.pathname.replace(/[^/]*$/, 'driver-track.html');
   const qs = new URLSearchParams({
@@ -4000,7 +4013,8 @@ function getDriverTrackUrl(order){
     name: order.customerName || '',
     phone: order.customerPhone || '',
     addr: order.deliveryAddress || '',
-    total: Number(order.total||0).toFixed(2)
+    total: Number(order.total||0).toFixed(2),
+    pm: order.paymentMethod || 'cod'
   });
   return `${base}?${qs.toString()}`;
 }
