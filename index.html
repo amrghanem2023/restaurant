@@ -278,6 +278,7 @@
     th, td{padding:8px 6px;}
   }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 </head>
 <body>
 
@@ -347,6 +348,9 @@
     <div class="nav-item" data-module="customers" onclick="showModule('customers')">
       <span class="nav-icon">👥</span><span data-i18n="nav_customers">العملاء</span>
     </div>
+    <div class="nav-item" data-module="whatsappLog" onclick="showModule('whatsappLog')">
+      <span class="nav-icon">💬</span><span data-i18n="nav_whatsappLog">سجل المراسلات</span>
+    </div>
     <div class="nav-item" data-module="shifts" onclick="showModule('shifts')">
       <span class="nav-icon">💰</span><span data-i18n="nav_shifts">الورديات</span>
     </div>
@@ -354,6 +358,7 @@
       <span class="nav-icon">⚙️</span><span data-i18n="nav_settings">الإعدادات والبيانات</span>
     </div>
     <div class="sidebar-footer">
+      <button onclick="openKitchenPinPrompt()" style="background:#0f766e; margin-bottom:8px;" data-i18n="kitchenModeBtn">🍳 وضع المطبخ</button>
       <button onclick="doLogout()" data-i18n="logout">تسجيل الخروج</button>
     </div>
   </aside>
@@ -860,6 +865,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-deltab="zones" onclick="switchDeliveryTab('zones')" data-i18n="tabDeliveryZones">مناطق التوصيل</button>
         <button class="tab-btn" data-deltab="drivers" onclick="switchDeliveryTab('drivers')" data-i18n="tabDrivers">السائقين</button>
+        <button class="tab-btn" data-deltab="tracking" onclick="switchDeliveryTab('tracking')" data-i18n="tabLiveTracking">🗺️ تتبع حي</button>
       </div>
 
       <!-- Delivery Zones Tab -->
@@ -911,6 +917,26 @@
               </thead>
               <tbody id="driversTbody"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Tracking Tab: a map of drivers currently out on delivery, updated in
+           real time from driverLat/driverLng fields the driver's phone pushes via
+           driver-track.html. Customer pin (if they shared their location while
+           ordering) plus a straight dashed line — clearly not a real routed path,
+           since that would need a paid routing API. -->
+      <div class="tab-pane" id="delTab-tracking">
+        <div class="panel">
+          <div class="panel-head">
+            <h3 data-i18n="tabLiveTracking">🗺️ تتبع حي</h3>
+          </div>
+          <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px;" data-i18n="liveTrackingDesc">الخط المنقط بين السائق والعميل تقريبي (خط مستقيم)، مش مسار طريق فعلي.</p>
+          <div id="activeDeliveriesListWrap" style="margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+          <div id="trackingMap" style="width:100%; height:440px; border-radius:12px; background:#eef1f2;"></div>
+          <div class="empty-state" id="trackingEmpty" style="display:none;">
+            <div class="icon">🛵</div>
+            <p data-i18n="noActiveDeliveries">لا يوجد طلبات دليفري جارية حاليًا</p>
           </div>
         </div>
       </div>
@@ -967,6 +993,38 @@
               </tr>
             </thead>
             <tbody id="customersTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- WhatsApp Messages Log: a persistent copy of every message sent via click-to-chat
+         (customer chats, rating requests, coupon sends, kitchen/driver notifications) —
+         since WhatsApp itself doesn't give the app a record of what was actually sent. -->
+    <div id="module-whatsappLog" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="nav_whatsappLog">سجل المراسلات</h3>
+        </div>
+        <div class="report-filters" style="margin-bottom:14px;">
+          <input type="text" id="whatsappLogSearchInput" placeholder="🔍" oninput="renderWhatsappMessagesLog()" style="flex:1; min-width:140px;">
+        </div>
+        <div id="whatsappLogWrap">
+          <div class="empty-state" id="whatsappLogEmpty">
+            <div class="icon">💬</div>
+            <p data-i18n="noWhatsappMessagesYet">لا توجد رسائل مسجّلة بعد</p>
+          </div>
+          <table id="whatsappLogTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colDate">التاريخ</th>
+                <th data-i18n="colName">الاسم</th>
+                <th data-i18n="colPhone">الهاتف</th>
+                <th data-i18n="colType">النوع</th>
+                <th data-i18n="colMessage">الرسالة</th>
+              </tr>
+            </thead>
+            <tbody id="whatsappLogTbody"></tbody>
           </table>
         </div>
       </div>
@@ -1772,6 +1830,30 @@
   </div>
 </div>
 
+<!-- Edit Customer Phone Modal -->
+<div class="modal-overlay" id="editCustomerPhoneModal">
+  <div class="modal">
+    <h3 data-i18n="editPhoneTitle">تعديل رقم هاتف العميل</h3>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px;" data-i18n="editPhoneDesc">العملاء بيتحسبوا من أرقام الهواتف المسجّلة في الطلبات، فتصحيح الرقم هنا هيحدّث كل الطلبات القديمة المرتبطة بالرقم القديم كمان.</p>
+    <div class="field">
+      <label data-i18n="customerNameReadonly">اسم العميل</label>
+      <input type="text" id="editCustomerNameDisplay" disabled>
+    </div>
+    <div class="field">
+      <label data-i18n="oldPhone">الرقم الحالي</label>
+      <input type="text" id="editCustomerOldPhone" disabled dir="ltr">
+    </div>
+    <div class="field">
+      <label data-i18n="newPhone">الرقم الجديد</label>
+      <input type="text" id="editCustomerNewPhone" dir="ltr" placeholder="01xxxxxxxxx">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeEditCustomerPhoneModal()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" id="saveCustomerPhoneBtn" onclick="saveEditedCustomerPhone()" data-i18n="save">حفظ</button>
+    </div>
+  </div>
+</div>
+
 <!-- Bulk Coupon Send Queue Modal -->
 <div class="modal-overlay" id="bulkCouponModal">
   <div class="modal" style="max-width:480px;">
@@ -1805,6 +1887,36 @@
   </div>
 </div>
 
+<!-- Kitchen Mode PIN Prompt -->
+<div class="modal-overlay" id="kitchenPinModal">
+  <div class="modal" style="max-width:340px; text-align:center;">
+    <h3 data-i18n="kitchenPinTitle">🍳 دخول وضع المطبخ</h3>
+    <p style="font-size:12px; color:var(--muted); margin:-6px 0 16px;" data-i18n="kitchenPinDesc">اكتب كود الدخول السريع (PIN) بتاعك</p>
+    <input type="password" id="kitchenPinInput" inputmode="numeric" maxlength="6" style="width:100%; padding:14px; font-size:22px; text-align:center; letter-spacing:6px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px;" placeholder="••••">
+    <div id="kitchenPinErr" style="color:var(--danger); font-size:12px; margin-bottom:12px; display:none;" data-i18n="wrongPin">الكود غلط أو مفيش صلاحية مطبخ</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeKitchenPinPrompt()" data-i18n="cancel">إلغاء</button>
+      <button class="btn" style="flex:1;" onclick="submitKitchenPin()" data-i18n="enter">دخول</button>
+    </div>
+  </div>
+</div>
+
+<!-- Kitchen Mode: full-screen simplified display for the kitchen. Uses the same
+     Firebase session as the owner (there's no separate staff login system in this
+     app) — the PIN above is a UI convenience that hides everything except the cooking
+     queue, not a real security boundary; anyone with browser devtools could bypass it. -->
+<div id="kitchenModeScreen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:200; overflow-y:auto;">
+  <div style="background:var(--primary-dark,#0d5f58); color:#fff; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:2;">
+    <h2 style="margin:0; font-size:18px;" data-i18n="kitchenModeTitle">🍳 شاشة المطبخ</h2>
+    <button onclick="exitKitchenMode()" style="background:rgba(255,255,255,.15); color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;" data-i18n="exitKitchenMode">🔒 خروج</button>
+  </div>
+  <div id="kitchenOrdersGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; padding:18px;"></div>
+  <div class="empty-state" id="kitchenEmptyState" style="display:none; margin:40px;">
+    <div class="icon">🍳</div>
+    <p data-i18n="kitchenNoOrders">مفيش طلبات محتاجة تجهيز دلوقتي</p>
+  </div>
+</div>
+
 <!-- Purchase Order Modal -->
 <div class="modal-overlay" id="poModal">
   <div class="modal" style="max-width:460px;">
@@ -1832,6 +1944,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK scripts moved here (right before the app script, instead of <head>) so the
      browser can parse and paint the login screen immediately instead of blocking page render
      while these download — this is what caused the app to look "frozen"/blank on slower
@@ -1887,11 +2000,11 @@ const ORDER_STATUSES = ['pending_payment','pending','preparing','ready','out_for
 
 let staffCache = [];
 let editingStaffId = null;
-const ALL_PERMISSIONS = ['orders_view','orders_edit','menu_edit','reports_view','staff_manage','coupons_manage'];
+const ALL_PERMISSIONS = ['orders_view','orders_edit','menu_edit','reports_view','staff_manage','coupons_manage','kitchen_manage'];
 const ROLE_DEFAULT_PERMS = {
-  manager: ['orders_view','orders_edit','menu_edit','reports_view','staff_manage','coupons_manage'],
+  manager: ['orders_view','orders_edit','menu_edit','reports_view','staff_manage','coupons_manage','kitchen_manage'],
   cashier: ['orders_view','orders_edit'],
-  chef: ['orders_view'],
+  chef: ['orders_view','kitchen_manage'],
   waiter: ['orders_view','orders_edit']
 };
 
@@ -1959,6 +2072,12 @@ const translations = {
     perm_orders_view:"عرض الطلبات", perm_orders_edit:"تعديل الطلبات",
     perm_menu_edit:"تعديل القائمة", perm_reports_view:"عرض التقارير",
     perm_staff_manage:"إدارة الموظفين", perm_coupons_manage:"إدارة الكوبونات",
+    perm_kitchen_manage:"وضع المطبخ (تجهيز الطلبات)",
+    kitchenModeBtn:"🍳 وضع المطبخ", kitchenPinTitle:"🍳 دخول وضع المطبخ",
+    kitchenPinDesc:"اكتب كود الدخول السريع (PIN) بتاعك", wrongPin:"الكود غلط أو مفيش صلاحية مطبخ",
+    enter:"دخول", kitchenModeTitle:"🍳 شاشة المطبخ", exitKitchenMode:"🔒 خروج",
+    kitchenNoOrders:"مفيش طلبات محتاجة تجهيز دلوقتي", prepMinutes:"وقت التجهيز (دقيقة)",
+    markOrderReady:"تم التجهيز",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
     pinMustBe4:"كود الدخول لازم يكون 4 أرقام على الأقل",
     couponList:"قائمة الكوبونات", addCoupon:"+ إضافة كوبون", noCouponsYet:"لا توجد كوبونات بعد",
@@ -2059,6 +2178,8 @@ const translations = {
     importComplete:"تم استيراد المنتجات بنجاح", importFailed:"فشلت عملية الاستيراد",
     nav_delivery:"الدليفري",
     tabDeliveryZones:"مناطق التوصيل", tabDrivers:"السائقين",
+    tabLiveTracking:"🗺️ تتبع حي", liveTrackingDesc:"الخط المنقط بين السائق والعميل تقريبي (خط مستقيم)، مش مسار طريق فعلي.",
+    noActiveDeliveries:"لا يوجد طلبات دليفري جارية حاليًا", showAll:"عرض الكل",
     zoneList:"مناطق التوصيل", addZone:"+ إضافة منطقة", editZone:"تعديل منطقة", noZonesYet:"لا توجد مناطق توصيل بعد",
     zoneSaved:"تم حفظ المنطقة", zoneDeleted:"تم حذف المنطقة",
     driverList:"قائمة السائقين", addDriver:"+ إضافة سائق", editDriver:"تعديل سائق", noDriversYet:"لا يوجد سائقين بعد",
@@ -2097,6 +2218,17 @@ const translations = {
     sortByTotalSpent:"الأكثر إنفاقًا", sortByOrdersCount:"الأكثر طلبات",
     sortByRecent:"الأحدث طلبًا", sortByOldest:"الأقدم طلبًا (لم يطلبوا مؤخرًا)",
     selectAll:"تحديد الكل", sendCouponToSelected:"🎁 إرسال كوبون للمحددين",
+    editPhone:"تعديل الرقم", editPhoneTitle:"تعديل رقم هاتف العميل",
+    editPhoneDesc:"العملاء بيتحسبوا من أرقام الهواتف المسجّلة في الطلبات، فتصحيح الرقم هنا هيحدّث كل الطلبات القديمة المرتبطة بالرقم القديم كمان.",
+    customerNameReadonly:"اسم العميل", oldPhone:"الرقم الحالي", newPhone:"الرقم الجديد", save:"حفظ",
+    enterNewPhone:"من فضلك اكتب الرقم الجديد", noOrdersForPhone:"مفيش طلبات مرتبطة بالرقم ده",
+    phoneUpdated:"تم تحديث رقم العميل في كل طلباته",
+    nav_whatsappLog:"سجل المراسلات", noWhatsappMessagesYet:"لا توجد رسائل مسجّلة بعد",
+    colDate:"التاريخ", colType:"النوع", colMessage:"الرسالة",
+    sendRatingLink:"إرسال رابط تقييم",
+    contactType_chat:"محادثة", contactType_rating:"طلب تقييم", contactType_coupon:"كوبون",
+    contactType_kitchen_notify:"إشعار المطبخ", contactType_driver_notify:"إشعار السائق",
+    contactType_delivery_notify:"إشعار توصيل",
     noCustomersYet:"لا يوجد عملاء بأرقام هواتف مسجّلة بعد",
     colOrdersCount:"عدد الطلبات", colTotalSpent:"إجمالي الإنفاق", colRating:"التقييم", colLastOrder:"آخر طلب",
     whatsappChat:"مراسلة واتساب", requestRating:"طلب تقييم", sendCoupon:"إرسال كوبون",
@@ -2175,6 +2307,12 @@ const translations = {
     perm_orders_view:"View Orders", perm_orders_edit:"Edit Orders",
     perm_menu_edit:"Edit Menu", perm_reports_view:"View Reports",
     perm_staff_manage:"Manage Staff", perm_coupons_manage:"Manage Coupons",
+    perm_kitchen_manage:"Kitchen Mode (prepare orders)",
+    kitchenModeBtn:"🍳 Kitchen Mode", kitchenPinTitle:"🍳 Enter Kitchen Mode",
+    kitchenPinDesc:"Enter your quick-login PIN", wrongPin:"Wrong PIN or no kitchen permission",
+    enter:"Enter", kitchenModeTitle:"🍳 Kitchen Display", exitKitchenMode:"🔒 Exit",
+    kitchenNoOrders:"No orders need preparing right now", prepMinutes:"Prep time (min)",
+    markOrderReady:"Ready",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
     pinMustBe4:"Login code must be at least 4 digits",
     couponList:"Coupons List", addCoupon:"+ Add Coupon", noCouponsYet:"No coupons yet",
@@ -2275,6 +2413,8 @@ const translations = {
     importComplete:"Products imported successfully", importFailed:"Import failed",
     nav_delivery:"Delivery",
     tabDeliveryZones:"Delivery Zones", tabDrivers:"Drivers",
+    tabLiveTracking:"🗺️ Live Tracking", liveTrackingDesc:"The dashed line between driver and customer is a straight-line estimate, not an actual routed path.",
+    noActiveDeliveries:"No active deliveries right now", showAll:"Show All",
     zoneList:"Delivery Zones", addZone:"+ Add Zone", editZone:"Edit Zone", noZonesYet:"No delivery zones yet",
     zoneSaved:"Zone saved", zoneDeleted:"Zone deleted",
     driverList:"Drivers", addDriver:"+ Add Driver", editDriver:"Edit Driver", noDriversYet:"No drivers yet",
@@ -2313,6 +2453,17 @@ const translations = {
     sortByTotalSpent:"Highest Spending", sortByOrdersCount:"Most Orders",
     sortByRecent:"Most Recent Order", sortByOldest:"Oldest Order (haven't ordered recently)",
     selectAll:"Select All", sendCouponToSelected:"🎁 Send Coupon to Selected",
+    editPhone:"Edit Phone", editPhoneTitle:"Edit Customer Phone Number",
+    editPhoneDesc:"Customers are computed from phone numbers recorded on orders, so correcting the number here updates it on every past order linked to the old number too.",
+    customerNameReadonly:"Customer Name", oldPhone:"Current Number", newPhone:"New Number", save:"Save",
+    enterNewPhone:"Please enter the new number", noOrdersForPhone:"No orders found for this number",
+    phoneUpdated:"Customer phone updated across all their orders",
+    nav_whatsappLog:"Message Log", noWhatsappMessagesYet:"No messages logged yet",
+    colDate:"Date", colType:"Type", colMessage:"Message",
+    sendRatingLink:"Send Rating Link",
+    contactType_chat:"Chat", contactType_rating:"Rating Request", contactType_coupon:"Coupon",
+    contactType_kitchen_notify:"Kitchen Alert", contactType_driver_notify:"Driver Alert",
+    contactType_delivery_notify:"Delivery Alert",
     noCustomersYet:"No customers with a saved phone number yet",
     colOrdersCount:"Orders", colTotalSpent:"Total Spent", colRating:"Rating", colLastOrder:"Last Order",
     whatsappChat:"WhatsApp Chat", requestRating:"Request Rating", sendCoupon:"Send Coupon",
@@ -2470,6 +2621,7 @@ function showModule(name){
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
   if(name === 'settings'){ renderMenuQrSection(); renderOrderPageQrSection(); loadPublicSettingsForm(); }
+  if(name === 'whatsappLog') loadWhatsappMessagesLog();
   if(name === 'customers') renderCustomersTable();
   if(name === 'shifts'){ populateShiftBranchSelect(); renderCurrentShiftStatus(); renderShiftsHistoryTable(); }
 }
@@ -3579,6 +3731,8 @@ function startOrdersListener(){
     renderReports();
     updateDashboardStats();
     updatePendingPaymentBadge();
+    if(trackingMap) renderTrackingMap();
+    if(kitchenModeActive) renderKitchenMode();
     if(document.getElementById('module-customers') && document.getElementById('module-customers').style.display !== 'none'){
       renderCustomersTable();
     }
@@ -3702,7 +3856,8 @@ function renderOrderCard(o){
     } else if(o.customerPhone){
       ratingHtml = `<div class="rating-stars" style="font-size:16px; margin:4px 0; cursor:pointer;">
         ${[1,2,3,4,5].map(n=> `<span onclick="setOrderRating('${o.id}', ${n})">☆</span>`).join('')}
-      </div>`;
+      </div>
+      <button class="btn btn-outline" style="width:100%; font-size:11px; padding:5px; margin-bottom:6px;" onclick="requestOrderRatingViaWhatsapp('${o.id}')">📩 ${t('sendRatingLink')}</button>`;
     }
   }
 
@@ -3716,6 +3871,7 @@ function renderOrderCard(o){
     <div class="items-summary">${itemsSummary}</div>
     ${o.couponCode ? `<div style="font-size:11px; color:var(--ok); margin-bottom:4px;">🏷️ ${escapeHtml(o.couponCode)}</div>` : ''}
     ${o.paymentMethod === 'bank_transfer' && o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" style="font-size:11px; display:block; margin-bottom:4px;">🧾 ${t('viewReceipt')}</a>` : ''}
+    ${o.status === 'preparing' && o.estimatedPrepMinutes ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⏱️ ${t('prepMinutes')}: ${o.estimatedPrepMinutes}</div>` : ''}
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
@@ -3732,6 +3888,25 @@ async function setOrderRating(orderId, rating){
     console.error('setOrderRating error', e);
     showToast(e.message);
   }
+}
+
+// Same ?menu=&branch= style convention as the other customer-facing pages — points at
+// rate-order.html, deployed alongside index.html and customer-order.html.
+function getRateOrderUrl(orderId){
+  const base = window.location.origin + window.location.pathname.replace(/[^/]*$/, 'rate-order.html');
+  return `${base}?r=${currentRestaurantId}&o=${orderId}`;
+}
+
+// Sends a WhatsApp message containing a direct link the customer can open themselves to
+// submit a real star rating (rate-order.html) — this is what actually lets the
+// customer's own rating show up, instead of relying on staff asking verbally and
+// tapping stars on their behalf.
+function requestOrderRatingViaWhatsapp(orderId){
+  const order = ordersCache.find(o=> o.id === orderId);
+  if(!order || !order.customerPhone) return;
+  const link = getRateOrderUrl(orderId);
+  const message = t('ratingRequestMessage').replace('{name}', order.customerName||'') + '\n' + link;
+  openWhatsappChat(order.customerPhone, message, 'rating', order.customerName);
 }
 
 async function updateOrderStatus(orderId, newStatus){
@@ -3798,12 +3973,29 @@ async function notifyKitchenWhatsapp(order){
 
 // Same best-effort click-to-chat approach for the driver + customer once a driver is
 // assigned to a delivery order.
+// Same ?r=&o= convention as rate-order.html, plus a few plain query params (name/phone/
+// addr/total) purely for display — the driver page can't read the order doc (see its
+// own comments), so the WhatsApp link itself carries what the driver needs to see.
+function getDriverTrackUrl(order){
+  const base = window.location.origin + window.location.pathname.replace(/[^/]*$/, 'driver-track.html');
+  const qs = new URLSearchParams({
+    r: currentRestaurantId,
+    o: order.id,
+    name: order.customerName || '',
+    phone: order.customerPhone || '',
+    addr: order.deliveryAddress || '',
+    total: Number(order.total||0).toFixed(2)
+  });
+  return `${base}?${qs.toString()}`;
+}
+
 function notifyDriverAndCustomerWhatsapp(order, driver){
   try{
     if(driver && driver.phone){
       const itemsText = (order.items||[]).map(it=> `${it.qty}× ${it.name}`).join('، ');
-      const driverMsg = `طلب توصيل #${order.id.slice(0,6).toUpperCase()}\nالعميل: ${order.customerName||''} - ${order.customerPhone||''}\nالعنوان: ${order.deliveryAddress||''}\n${itemsText}\nالإجمالي: ${Number(order.total||0).toFixed(2)} جنيه`;
-      openWhatsappChat(driver.phone, driverMsg, 'driver_notify');
+      const trackLink = getDriverTrackUrl(order);
+      const driverMsg = `طلب توصيل #${order.id.slice(0,6).toUpperCase()}\nالعميل: ${order.customerName||''} - ${order.customerPhone||''}\nالعنوان: ${order.deliveryAddress||''}\n${itemsText}\nالإجمالي: ${Number(order.total||0).toFixed(2)} جنيه\n\nافتح الرابط ده وفعّل مشاركة موقعك عشان المطعم يقدر يتابعك:\n${trackLink}`;
+      openWhatsappChat(driver.phone, driverMsg, 'driver_notify', driver.name);
     }
     if(order.customerPhone){
       const customerMsg = `طلبك #${order.id.slice(0,6).toUpperCase()} في الطريق وهيوصل خلال حوالي 30 دقيقة 🛵`;
@@ -4041,6 +4233,234 @@ function switchDeliveryTab(tab){
   document.querySelectorAll('#module-delivery .tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.deltab===tab));
   document.querySelectorAll('#module-delivery .tab-pane').forEach(p=> p.classList.remove('active'));
   document.getElementById('delTab-'+tab).classList.add('active');
+  if(tab === 'tracking') initTrackingMap();
+}
+
+/* ---------- Live Delivery Tracking (map of orders currently out for delivery) ----------
+   Driver locations arrive via driverLat/driverLng fields, pushed from driver-track.html
+   (a separate anonymous page the driver opens from a WhatsApp link). Customer locations
+   are optional — only present if the customer tapped "share my location" on
+   customer-order.html. Everything here is read-only for staff; no writes happen from
+   this tab. */
+let trackingMap = null;
+let trackingMarkers = {}; // orderId -> { driverMarker, customerMarker, line }
+let trackingListenerAttached = false;
+let focusedTrackingOrderId = null;
+
+function initTrackingMap(){
+  if(!trackingMap){
+    trackingMap = L.map('trackingMap').setView([30.0444, 31.2357], 11); // Cairo default center
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(trackingMap);
+    // Leaflet needs a nudge after becoming visible inside a previously display:none tab,
+    // otherwise it renders at the wrong size until the window is resized manually.
+    setTimeout(()=> trackingMap.invalidateSize(), 200);
+  } else {
+    setTimeout(()=> trackingMap.invalidateSize(), 100);
+  }
+
+  if(!trackingListenerAttached){
+    trackingListenerAttached = true;
+    // Piggybacks on the existing ordersCache updates (startOrdersListener already keeps
+    // this live) rather than opening a second Firestore listener — we just re-render the
+    // map's markers whenever renderOrdersBoard() would've fired anyway.
+  }
+  renderTrackingMap();
+}
+
+function activeDeliveryOrders(){
+  return ordersCache.filter(o=> o.orderType === 'delivery' && (o.status === 'ready' || o.status === 'out_for_delivery') && o.driverId);
+}
+
+const driverPinIcon = L.divIcon({ className:'', html:'<div style="background:#0f766e; color:#fff; width:30px; height:30px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,.3);"><span style="transform:rotate(45deg); font-size:15px;">🛵</span></div>', iconSize:[30,30], iconAnchor:[15,30] });
+const customerPinIcon = L.divIcon({ className:'', html:'<div style="background:#d97706; color:#fff; width:28px; height:28px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,.3);"><span style="transform:rotate(45deg); font-size:13px;">🏠</span></div>', iconSize:[28,28], iconAnchor:[14,28] });
+
+function renderTrackingMap(){
+  if(!trackingMap) return;
+  const orders = activeDeliveryOrders();
+
+  const listWrap = document.getElementById('activeDeliveriesListWrap');
+  const emptyEl = document.getElementById('trackingEmpty');
+  const mapEl = document.getElementById('trackingMap');
+
+  if(orders.length === 0){
+    mapEl.style.display = 'none'; emptyEl.style.display = 'block'; listWrap.innerHTML = '';
+    return;
+  }
+  mapEl.style.display = 'block'; emptyEl.style.display = 'none';
+
+  listWrap.innerHTML = orders.map(o=>{
+    const active = focusedTrackingOrderId === o.id;
+    const hasLoc = o.driverLat && o.driverLng;
+    return `<button class="btn ${active?'':'btn-outline'}" style="font-size:12px; padding:6px 12px;" onclick="focusTrackingOrder('${o.id}')">
+      🛵 ${escapeHtml(o.driverName||'')} — #${o.id.slice(0,6).toUpperCase()} ${hasLoc ? '🟢' : '⚪'}
+    </button>`;
+  }).join('') + `<button class="btn btn-outline" style="font-size:12px; padding:6px 12px;" onclick="focusTrackingOrder(null)">${t('showAll')}</button>`;
+
+  // Remove markers for orders no longer active (delivered/cancelled/unassigned since last render).
+  Object.keys(trackingMarkers).forEach(id=>{
+    if(!orders.find(o=> o.id === id)){
+      const m = trackingMarkers[id];
+      if(m.driverMarker) trackingMap.removeLayer(m.driverMarker);
+      if(m.customerMarker) trackingMap.removeLayer(m.customerMarker);
+      if(m.line) trackingMap.removeLayer(m.line);
+      delete trackingMarkers[id];
+    }
+  });
+
+  const bounds = [];
+  orders.forEach(o=>{
+    if(!trackingMarkers[o.id]) trackingMarkers[o.id] = {};
+    const m = trackingMarkers[o.id];
+
+    if(o.driverLat && o.driverLng){
+      const pos = [o.driverLat, o.driverLng];
+      if(m.driverMarker) m.driverMarker.setLatLng(pos);
+      else m.driverMarker = L.marker(pos, { icon:driverPinIcon }).addTo(trackingMap);
+      m.driverMarker.bindPopup(`🛵 ${escapeHtml(o.driverName||'')}<br>#${o.id.slice(0,6).toUpperCase()}`);
+      bounds.push(pos);
+    }
+
+    if(o.deliveryLat && o.deliveryLng){
+      const pos = [o.deliveryLat, o.deliveryLng];
+      if(m.customerMarker) m.customerMarker.setLatLng(pos);
+      else m.customerMarker = L.marker(pos, { icon:customerPinIcon }).addTo(trackingMap);
+      m.customerMarker.bindPopup(`🏠 ${escapeHtml(o.customerName||'')}<br>${escapeHtml(o.deliveryAddress||'')}`);
+      bounds.push(pos);
+    }
+
+    // Straight dashed line between driver and customer, when both are known — an
+    // approximate "as the crow flies" indicator only, not a routed path (that needs a
+    // paid routing API this app doesn't use).
+    const driverPos = o.driverLat && o.driverLng ? [o.driverLat, o.driverLng] : null;
+    const custPos = o.deliveryLat && o.deliveryLng ? [o.deliveryLat, o.deliveryLng] : null;
+    if(driverPos && custPos){
+      if(m.line) m.line.setLatLngs([driverPos, custPos]);
+      else m.line = L.polyline([driverPos, custPos], { color:'#0f766e', weight:2, dashArray:'6,8', opacity:.7 }).addTo(trackingMap);
+    } else if(m.line){
+      trackingMap.removeLayer(m.line);
+      m.line = null;
+    }
+  });
+
+  if(focusedTrackingOrderId){
+    const o = orders.find(x=> x.id === focusedTrackingOrderId);
+    const m = o ? trackingMarkers[o.id] : null;
+    const focusBounds = [];
+    if(m && m.driverMarker) focusBounds.push(m.driverMarker.getLatLng());
+    if(m && m.customerMarker) focusBounds.push(m.customerMarker.getLatLng());
+    if(focusBounds.length === 1) trackingMap.setView(focusBounds[0], 15);
+    else if(focusBounds.length === 2) trackingMap.fitBounds(focusBounds, { padding:[40,40] });
+  } else if(bounds.length > 0){
+    trackingMap.fitBounds(bounds, { padding:[40,40] });
+  }
+}
+
+function focusTrackingOrder(orderId){
+  focusedTrackingOrderId = orderId;
+  renderTrackingMap();
+}
+
+/* ---------- Kitchen Mode (PIN-gated, full-screen simplified order queue) ----------
+   Not a separate login — this app only has one Firebase Auth account (the owner). The
+   PIN just switches the UI into a restricted kitchen-only view; it's a convenience for
+   sharing one tablet with kitchen staff, not a real per-user security boundary. Real
+   per-staff auth would need separate Firebase accounts + custom claims, which is a much
+   bigger change than this app currently supports. */
+let kitchenModeActive = false;
+
+function openKitchenPinPrompt(){
+  document.getElementById('kitchenPinInput').value = '';
+  document.getElementById('kitchenPinErr').style.display = 'none';
+  document.getElementById('kitchenPinModal').classList.add('active');
+  setTimeout(()=> document.getElementById('kitchenPinInput').focus(), 100);
+}
+function closeKitchenPinPrompt(){
+  document.getElementById('kitchenPinModal').classList.remove('active');
+}
+
+function submitKitchenPin(){
+  const pin = document.getElementById('kitchenPinInput').value.trim();
+  const staffMember = staffCache.find(s=>
+    s.active !== false &&
+    (s.pin||'') === pin &&
+    pin.length > 0 &&
+    (s.permissions||ROLE_DEFAULT_PERMS[s.role]||[]).includes('kitchen_manage')
+  );
+  if(!staffMember){
+    document.getElementById('kitchenPinErr').style.display = 'block';
+    return;
+  }
+  closeKitchenPinPrompt();
+  enterKitchenMode(staffMember);
+}
+
+function enterKitchenMode(staffMember){
+  kitchenModeActive = true;
+  document.getElementById('kitchenModeScreen').style.display = 'block';
+  renderKitchenMode();
+}
+function exitKitchenMode(){
+  kitchenModeActive = false;
+  document.getElementById('kitchenModeScreen').style.display = 'none';
+}
+
+// Kitchen sees only what it needs to act on: orders already being prepared. Payment
+// status is shown as a badge so they know a bank-transfer order was actually confirmed
+// (vs. an unconfirmed pending_payment order, which never reaches "preparing" until
+// staff confirm the transfer — see confirmOrderTransfer).
+function renderKitchenMode(){
+  const grid = document.getElementById('kitchenOrdersGrid');
+  const empty = document.getElementById('kitchenEmptyState');
+  if(!grid) return;
+
+  const orders = ordersCache
+    .filter(o=> o.status === 'preparing')
+    .sort((a,b)=> (toJsDate(a.createdAt)||0) - (toJsDate(b.createdAt)||0)); // oldest first (FIFO)
+
+  if(orders.length === 0){
+    grid.style.display = 'none'; empty.style.display = 'block';
+    return;
+  }
+  grid.style.display = 'grid'; empty.style.display = 'none';
+
+  grid.innerHTML = orders.map(o=>{
+    const branch = branchesCache.find(b=> b.id === o.branchId);
+    const itemsHtml = (o.items||[]).map(it=> `<div style="display:flex; justify-content:space-between; font-size:14px; padding:3px 0;"><span>${escapeHtml(it.name)}</span><b>×${it.qty}</b></div>`).join('');
+    const paymentBadge = o.paymentMethod === 'bank_transfer'
+      ? `<span class="stock-badge" style="background:#dcfce7; color:#166534;">💳 ${t('paymentBankTransfer')} ✅</span>`
+      : `<span class="stock-badge" style="background:#fef9c3; color:#854d0e;">💵 ${t('paymentCod')}</span>`;
+    const minutesVal = o.estimatedPrepMinutes || '';
+    return `<div style="background:#fff; border-radius:12px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-inline-start:4px solid var(--primary);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <b style="font-size:15px;">#${o.id.slice(0,6).toUpperCase()}</b>
+        ${paymentBadge}
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">🏢 ${escapeHtml(branch?branch.name:'')} · ${escapeHtml(o.customerName||'')}</div>
+      <div style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:6px 0; margin-bottom:10px;">${itemsHtml}</div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <label style="font-size:12px; color:var(--muted); white-space:nowrap;">${t('prepMinutes')}</label>
+        <input type="number" min="1" value="${minutesVal}" placeholder="15" style="width:70px; padding:6px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="updateOrderPrepMinutes('${o.id}', this.value)">
+      </div>
+      <button class="btn" style="width:100%;" onclick="markOrderReadyFromKitchen('${o.id}')">✅ ${t('markOrderReady')}</button>
+    </div>`;
+  }).join('');
+}
+
+async function updateOrderPrepMinutes(orderId, minutes){
+  const n = parseInt(minutes);
+  if(!n || n < 1) return;
+  try{
+    await ordersCol().doc(orderId).update({ estimatedPrepMinutes: n });
+  }catch(e){
+    console.error('updateOrderPrepMinutes error', e);
+  }
+}
+
+async function markOrderReadyFromKitchen(orderId){
+  await updateOrderStatus(orderId, 'ready');
 }
 
 /* ---------- Customers (derived from order history, not a separate collection) ----------
@@ -4059,6 +4479,70 @@ let customerContactsCache = {}; // { phoneDigitsOnly: { phone, lastContactAt, la
 
 function customerContactsCol(){
   return db.collection('restaurants').doc(currentRestaurantId).collection('customerContacts');
+}
+
+// Full message-content log — separate from customerContactsCol above, which only tracks
+// "last contact date/type" per phone for the follow-up-reminder feature. This collection
+// keeps one doc per message actually sent (or attempted) via WhatsApp click-to-chat, so
+// staff have a real paper trail of what was said and when, viewable on its own page.
+function whatsappMessagesCol(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('whatsappMessages');
+}
+
+let whatsappMessagesCache = [];
+
+async function logWhatsappMessage(phone, customerName, message, contactType){
+  try{
+    await whatsappMessagesCol().add({
+      phone: phone || '',
+      customerName: customerName || '',
+      message: message || '',
+      contactType: contactType || 'chat',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){
+    console.error('logWhatsappMessage error', e);
+  }
+}
+
+async function loadWhatsappMessagesLog(){
+  try{
+    const snap = await whatsappMessagesCol().orderBy('createdAt','desc').limit(200).get();
+    whatsappMessagesCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+    renderWhatsappMessagesLog();
+  }catch(e){
+    console.error('loadWhatsappMessagesLog error', e);
+  }
+}
+
+function renderWhatsappMessagesLog(){
+  const tbody = document.getElementById('whatsappLogTbody');
+  const table = document.getElementById('whatsappLogTable');
+  const empty = document.getElementById('whatsappLogEmpty');
+  if(!tbody) return;
+
+  const query = (document.getElementById('whatsappLogSearchInput').value||'').trim().toLowerCase();
+  let rows = whatsappMessagesCache;
+  if(query){
+    rows = rows.filter(m=> (m.customerName||'').toLowerCase().includes(query) || (m.phone||'').includes(query));
+  }
+
+  if(rows.length === 0){
+    table.style.display = 'none'; empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table'; empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(m=>{
+    const dateStr = m.createdAt && m.createdAt.toDate ? m.createdAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '—';
+    return `<tr>
+      <td style="white-space:nowrap; font-size:12px;">${dateStr}</td>
+      <td>${escapeHtml(m.customerName || '—')}</td>
+      <td dir="ltr" style="text-align:right;">${escapeHtml(m.phone)}</td>
+      <td><span class="stock-badge" style="background:#eef2ff; color:#4338ca;">${t('contactType_'+m.contactType) || m.contactType}</span></td>
+      <td style="max-width:320px; white-space:pre-wrap; font-size:13px;">${escapeHtml(m.message || '—')}</td>
+    </tr>`;
+  }).join('');
 }
 
 function sanitizePhoneForDocId(phone){
@@ -4185,6 +4669,7 @@ function renderCustomersTable(){
         <button onclick="openWhatsappChat('${c.phone}')" title="${t('whatsappChat')}">💬</button>
         <button onclick="requestRatingViaWhatsapp('${c.phone}')" title="${t('requestRating')}">⭐</button>
         <button onclick="openSendCouponModal('${c.phone}')" title="${t('sendCoupon')}">🎁</button>
+        <button onclick="openEditCustomerPhoneModal('${c.phone}', '${escapeHtml(c.name).replace(/'/g,"\\'")}')" title="${t('editPhone')}">✏️</button>
       </td>
     </tr>`;
   }).join('');
@@ -4213,11 +4698,20 @@ function normalizePhoneForWhatsapp(phone){
   return p;
 }
 
-function openWhatsappChat(phone, message, contactType){
+function openWhatsappChat(phone, message, contactType, customerName){
   const intlPhone = normalizePhoneForWhatsapp(phone);
   const url = `https://wa.me/${intlPhone}` + (message ? `?text=${encodeURIComponent(message)}` : '');
   window.open(url, '_blank');
   logCustomerContact(phone, contactType || 'chat');
+  // Fall back to looking the name up from order history if the caller didn't already
+  // know it (e.g. kitchen/driver numbers won't match any customer — that's fine, the
+  // log just shows the contact type instead).
+  let name = customerName;
+  if(!name){
+    const c = computeCustomersFromOrders().find(x=> x.phone === phone);
+    name = c ? c.name : '';
+  }
+  logWhatsappMessage(phone, name, message, contactType);
 }
 
 function requestRatingViaWhatsapp(phone){
@@ -4230,6 +4724,7 @@ function requestRatingViaWhatsapp(phone){
 
 /* ---------- Send Coupon via WhatsApp (single + bulk queue) ---------- */
 let sendCouponTargetPhone = null;
+let editCustomerPhoneTarget = null;
 
 function buildCouponMessage(coupon, customerName){
   const discountText = coupon.type === 'percentage' ? `${coupon.value}%` : `${coupon.value} ${t('currencyUnit')}`;
@@ -4266,6 +4761,66 @@ function sendCouponViaWhatsapp(){
   if(!sendCouponTargetPhone){ showToast(t('nothingToExport')); return; }
   openWhatsappChat(sendCouponTargetPhone, message, 'coupon');
   closeSendCouponModal();
+}
+
+// Customers aren't a standalone collection — they're computed on the fly from
+// customerPhone/customerName across orders (see computeCustomersFromOrders). So "editing
+// a customer's phone" really means correcting that field on every order that carries the
+// old number, plus renaming the customerContacts doc keyed by the old number (if any).
+function openEditCustomerPhoneModal(phone, name){
+  editCustomerPhoneTarget = phone;
+  document.getElementById('editCustomerNameDisplay').value = name || '—';
+  document.getElementById('editCustomerOldPhone').value = phone;
+  document.getElementById('editCustomerNewPhone').value = phone;
+  document.getElementById('editCustomerPhoneModal').classList.add('active');
+}
+function closeEditCustomerPhoneModal(){
+  document.getElementById('editCustomerPhoneModal').classList.remove('active');
+  editCustomerPhoneTarget = null;
+}
+async function saveEditedCustomerPhone(){
+  const oldPhone = editCustomerPhoneTarget;
+  const newPhone = document.getElementById('editCustomerNewPhone').value.trim();
+  if(!oldPhone) return;
+  if(!newPhone){ showToast(t('enterNewPhone')); return; }
+  if(newPhone === oldPhone){ closeEditCustomerPhoneModal(); return; }
+
+  const btn = document.getElementById('saveCustomerPhoneBtn');
+  btn.disabled = true;
+  try{
+    const affectedOrders = ordersCache.filter(o=> (o.customerPhone||'').trim() === oldPhone);
+    if(affectedOrders.length === 0){ showToast(t('noOrdersForPhone')); btn.disabled = false; return; }
+
+    // Firestore batches cap at 500 writes — chunk just in case a customer has an
+    // unusually long order history.
+    const chunks = [];
+    for(let i=0; i<affectedOrders.length; i+=450) chunks.push(affectedOrders.slice(i, i+450));
+    for(const chunk of chunks){
+      const batch = db.batch();
+      chunk.forEach(o=> batch.update(ordersCol().doc(o.id), { customerPhone:newPhone }));
+      await batch.commit();
+    }
+
+    // Carry over the contact-log entry (last WhatsApp contact date/count) to the new
+    // phone's doc id, since that log is keyed by a sanitized version of the number.
+    const oldDocId = sanitizePhoneForDocId(oldPhone);
+    const newDocId = sanitizePhoneForDocId(newPhone);
+    if(oldDocId !== newDocId && customerContactsCache[oldDocId]){
+      await customerContactsCol().doc(newDocId).set(customerContactsCache[oldDocId], { merge:true });
+      await customerContactsCol().doc(oldDocId).delete();
+      customerContactsCache[newDocId] = customerContactsCache[oldDocId];
+      delete customerContactsCache[oldDocId];
+    }
+
+    await logActivity('✏️', `تم تصحيح رقم عميل من ${oldPhone} إلى ${newPhone}`, `Customer phone corrected from ${oldPhone} to ${newPhone}`);
+    showToast(t('phoneUpdated'));
+    closeEditCustomerPhoneModal();
+  }catch(e){
+    console.error('saveEditedCustomerPhone error', e);
+    showToast(e.message);
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 function openBulkCouponModal(){
