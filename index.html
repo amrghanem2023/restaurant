@@ -625,6 +625,38 @@
           </table>
         </div>
       </div>
+
+      <!-- Payment-method breakdown: same period+branch filter as the rest of this
+           module. Card/wallet orders never touch a shift's cash drawer count (see
+           computeShiftSummary), so this is where they're actually visible in
+           aggregate — matched here against whatever the card terminal / wallet app
+           settlement shows for the same period. -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="revenueByPaymentMethod">الإيرادات حسب طريقة الدفع</h3>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline" onclick="printTable('paymentMethodRevenueTable', t('revenueByPaymentMethod'))" data-i18n="print">طباعة</button>
+            <button class="btn btn-outline" onclick="exportTableToExcel('paymentMethodRevenueTable', t('revenueByPaymentMethod'))" data-i18n="exportExcel">تصدير Excel</button>
+          </div>
+        </div>
+        <div id="paymentMethodRevenueWrap">
+          <div class="empty-state" id="paymentMethodRevenueEmpty">
+            <div class="icon">💳</div>
+            <p data-i18n="noDataYet">لا توجد بيانات كافية بعد</p>
+          </div>
+          <table id="paymentMethodRevenueTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="paymentMethod">طريقة الدفع</th>
+                <th data-i18n="reportTotalOrders">إجمالي الطلبات</th>
+                <th data-i18n="reportTotalRevenue">إجمالي الإيرادات</th>
+                <th data-i18n="colPercentOfSales">% من المبيعات</th>
+              </tr>
+            </thead>
+            <tbody id="paymentMethodRevenueTbody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
     <div id="module-coupons" class="module-content" style="display:none;">
       <div class="panel">
@@ -1007,7 +1039,16 @@
           <h3 data-i18n="nav_whatsappLog">سجل المراسلات</h3>
         </div>
         <div class="report-filters" style="margin-bottom:14px;">
-          <input type="text" id="whatsappLogSearchInput" placeholder="🔍" oninput="renderWhatsappMessagesLog()" style="flex:1; min-width:140px;">
+          <input type="text" id="whatsappLogSearchInput" placeholder="🔍 اسم أو رقم" oninput="renderWhatsappMessagesLog()" style="flex:1; min-width:140px;">
+          <select id="whatsappLogTypeFilter" onchange="renderWhatsappMessagesLog()">
+            <option value="all" data-i18n="logFilterAll">كل المراسلات</option>
+            <option value="customer" data-i18n="logFilterCustomer">👤 العملاء</option>
+            <option value="driver_notify" data-i18n="logFilterDriver">🛵 المناديب</option>
+            <option value="kitchen_notify" data-i18n="logFilterKitchen">👨‍🍳 المطبخ</option>
+          </select>
+          <input type="date" id="whatsappLogFromDate" onchange="onWhatsappLogDateFilterChange()" title="من تاريخ">
+          <input type="date" id="whatsappLogToDate" onchange="onWhatsappLogDateFilterChange()" title="إلى تاريخ">
+          <button class="btn btn-outline" style="font-size:12px; padding:8px 14px;" onclick="clearWhatsappLogFilters()" data-i18n="clearFilters">مسح الفلاتر</button>
         </div>
         <div id="whatsappLogWrap">
           <div class="empty-state" id="whatsappLogEmpty">
@@ -1811,6 +1852,39 @@
   </div>
 </div>
 
+<!-- Shift Transactions Modal: the actual order-by-order breakdown behind a shift's
+     aggregate totals — since a shift maps to one cashier working one branch for a time
+     window (no overlapping open shifts per branch — see findOpenShiftForBranch), this
+     list is effectively "this cashier's transactions" even though orders themselves
+     don't carry a staff/cashier field yet. -->
+<div class="modal-overlay" id="shiftTransactionsModal">
+  <div class="modal" style="max-width:640px;">
+    <h3 data-i18n="viewShiftTransactions">🧾 معاملات الوردية</h3>
+    <div id="shiftTransactionsMeta" style="font-size:12px; color:var(--muted); margin:-8px 0 14px;"></div>
+    <div style="max-height:60vh; overflow-y:auto;">
+      <table id="shiftTransactionsTable">
+        <thead>
+          <tr>
+            <th data-i18n="colTime">الوقت</th>
+            <th data-i18n="colOrderNum">رقم الطلب</th>
+            <th data-i18n="orderType">النوع</th>
+            <th data-i18n="paymentMethod">طريقة الدفع</th>
+            <th data-i18n="colOrderTotal">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody id="shiftTransactionsTbody"></tbody>
+      </table>
+      <div class="empty-state" id="shiftTransactionsEmpty" style="display:none;">
+        <div class="icon">🧾</div>
+        <p data-i18n="noShiftTransactions">مفيش معاملات مسجّلة في الفترة دي</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" style="flex:1;" onclick="closeShiftTransactionsModal()" data-i18n="close">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <!-- Send Coupon (single customer) Modal -->
 <div class="modal-overlay" id="sendCouponModal">
   <div class="modal">
@@ -1979,6 +2053,17 @@ let currentRestaurantId = null;
 let currentLang = 'ar';
 let editingBranchId = null;
 let branchesCache = [];
+
+// Branches marked "inactive" (closed/paused) should still show up in historical
+// filters and reports — their past orders/expenses are real — but shouldn't be
+// selectable for anything NEW: opening a shift there, creating a fresh order, sending
+// a notification, or generating an ordering/menu QR for it. This is the single place
+// that decides what counts as selectable, so every "new entry" dropdown stays in sync.
+// includeBranchId keeps an edit-mode selection visible even if that branch has since
+// gone inactive, so editing an existing record doesn't silently drop its branch.
+function selectableBranches(includeBranchId){
+  return branchesCache.filter(b=> (b.status || 'active') !== 'inactive' || b.id === includeBranchId);
+}
 
 let categoriesCache = [];
 let productsCache = [];
@@ -2217,6 +2302,7 @@ const translations = {
     viewReceipt:"عرض إيصال التحويل", paymentBankTransfer:"تحويل بنكي", paymentCod:"عند الاستلام",
     linkCopied:"تم نسخ الرابط", loadingMenu:"جاري تحميل القائمة...",
     menuNotAvailable:"القائمة غير متاحة حاليًا", otherItems:"أصناف أخرى", ourMenu:"قائمتنا",
+    branchClosedMenu:"الفرع ده مقفول حاليًا",
     scanMenuQr:"امسح الكود لعرض المنيو",
     nav_customers:"العملاء", customerList:"قائمة العملاء",
     sortByTotalSpent:"الأكثر إنفاقًا", sortByOrdersCount:"الأكثر طلبات",
@@ -2233,6 +2319,8 @@ const translations = {
     contactType_chat:"محادثة", contactType_rating:"طلب تقييم", contactType_coupon:"كوبون",
     contactType_kitchen_notify:"إشعار المطبخ", contactType_driver_notify:"إشعار السائق",
     contactType_delivery_notify:"إشعار توصيل",
+    logFilterAll:"كل المراسلات", logFilterCustomer:"👤 العملاء", logFilterDriver:"🛵 المناديب",
+    logFilterKitchen:"👨‍🍳 المطبخ", clearFilters:"مسح الفلاتر",
     noCustomersYet:"لا يوجد عملاء بأرقام هواتف مسجّلة بعد",
     colOrdersCount:"عدد الطلبات", colTotalSpent:"إجمالي الإنفاق", colRating:"التقييم", colLastOrder:"آخر طلب",
     whatsappChat:"مراسلة واتساب", requestRating:"طلب تقييم", sendCoupon:"إرسال كوبون",
@@ -2251,6 +2339,9 @@ const translations = {
     shiftHistory:"سجل الورديات", noShiftsYet:"لا توجد ورديات مسجّلة بعد",
     cashierName:"اسم الكاشير", shiftOpenedAt:"وقت الفتح", shiftClosedAt:"وقت الإغلاق",
     colTotalSales:"إجمالي المبيعات", cashDifference:"فرق الكاش",
+    viewShiftTransactions:"عرض المعاملات", colTime:"الوقت", colOrderNum:"رقم الطلب",
+    colOrderTotal:"الإجمالي", noShiftTransactions:"مفيش معاملات مسجّلة في الفترة دي",
+    close:"إغلاق", revenueByPaymentMethod:"الإيرادات حسب طريقة الدفع", colPercentOfSales:"% من المبيعات",
     openNewShift:"فتح وردية جديدة", openingCash:"المبلغ الافتتاحي (النقدية في الدرج)",
     openShift:"فتح الوردية", closeShift:"قفل الوردية",
     noOpenShift:"لا توجد وردية مفتوحة لهذا الفرع", shiftOpenSince:"الوردية مفتوحة منذ",
@@ -2456,6 +2547,7 @@ const translations = {
     viewReceipt:"View Transfer Receipt", paymentBankTransfer:"Bank Transfer", paymentCod:"Cash on Delivery",
     linkCopied:"Link copied", loadingMenu:"Loading menu...",
     menuNotAvailable:"Menu not available right now", otherItems:"Other Items", ourMenu:"Our Menu",
+    branchClosedMenu:"This branch is currently closed",
     scanMenuQr:"Scan the code to view the menu",
     nav_customers:"Customers", customerList:"Customer List",
     sortByTotalSpent:"Highest Spending", sortByOrdersCount:"Most Orders",
@@ -2472,6 +2564,8 @@ const translations = {
     contactType_chat:"Chat", contactType_rating:"Rating Request", contactType_coupon:"Coupon",
     contactType_kitchen_notify:"Kitchen Alert", contactType_driver_notify:"Driver Alert",
     contactType_delivery_notify:"Delivery Alert",
+    logFilterAll:"All messages", logFilterCustomer:"👤 Customers", logFilterDriver:"🛵 Drivers",
+    logFilterKitchen:"👨‍🍳 Kitchen", clearFilters:"Clear filters",
     noCustomersYet:"No customers with a saved phone number yet",
     colOrdersCount:"Orders", colTotalSpent:"Total Spent", colRating:"Rating", colLastOrder:"Last Order",
     whatsappChat:"WhatsApp Chat", requestRating:"Request Rating", sendCoupon:"Send Coupon",
@@ -2490,6 +2584,9 @@ const translations = {
     shiftHistory:"Shift History", noShiftsYet:"No shifts recorded yet",
     cashierName:"Cashier Name", shiftOpenedAt:"Opened At", shiftClosedAt:"Closed At",
     colTotalSales:"Total Sales", cashDifference:"Cash Difference",
+    viewShiftTransactions:"View Transactions", colTime:"Time", colOrderNum:"Order #",
+    colOrderTotal:"Total", noShiftTransactions:"No transactions recorded in this period",
+    close:"Close", revenueByPaymentMethod:"Revenue by Payment Method", colPercentOfSales:"% of Sales",
     openNewShift:"Open New Shift", openingCash:"Opening Cash (drawer float)",
     openShift:"Open Shift", closeShift:"Close Shift",
     noOpenShift:"No open shift for this branch", shiftOpenSince:"Shift open since",
@@ -4336,7 +4433,7 @@ function renderTrackingMap(){
     const active = focusedTrackingOrderId === o.id;
     const hasLoc = o.driverLat && o.driverLng;
     return `<button class="btn ${active?'':'btn-outline'}" style="font-size:12px; padding:6px 12px;" onclick="focusTrackingOrder('${o.id}')">
-      🛵 ${escapeHtml(o.driverName||'')} — #${o.id.slice(0,6).toUpperCase()} ${hasLoc ? '🟢' : '⚪'}
+      🛵 ${escapeHtml(o.driverName||'')} — #${o.id.slice(0,6).toUpperCase()} · ${escapeHtml(o.customerName||'')} ${hasLoc ? '🟢' : '⚪'}
     </button>`;
   }).join('') + `<button class="btn btn-outline" style="font-size:12px; padding:6px 12px;" onclick="focusTrackingOrder(null)">${t('showAll')}</button>`;
 
@@ -4360,7 +4457,7 @@ function renderTrackingMap(){
       const pos = [o.driverLat, o.driverLng];
       if(m.driverMarker) m.driverMarker.setLatLng(pos);
       else m.driverMarker = L.marker(pos, { icon:driverPinIcon }).addTo(trackingMap);
-      m.driverMarker.bindPopup(`🛵 ${escapeHtml(o.driverName||'')}<br>#${o.id.slice(0,6).toUpperCase()}`);
+      m.driverMarker.bindPopup(`🛵 ${escapeHtml(o.driverName||'')}<br>#${o.id.slice(0,6).toUpperCase()} · ${escapeHtml(o.customerName||'')}`);
       bounds.push(pos);
     }
 
@@ -4659,14 +4756,49 @@ async function logWhatsappMessage(phone, customerName, message, contactType){
   }
 }
 
-async function loadWhatsappMessagesLog(){
+async function loadWhatsappMessagesLog(fromDate, toDate){
   try{
-    const snap = await whatsappMessagesCol().orderBy('createdAt','desc').limit(200).get();
+    // Plain (unfiltered) load only pulls the most recent 200 messages, which is fine
+    // for the default view — but that cache alone can't answer a date-range search that
+    // reaches further back, so a date filter re-queries Firestore directly instead of
+    // just filtering the client-side cache. A where()+orderBy() on the same field
+    // (createdAt) doesn't need a composite index, so this stays a plain query.
+    let q = whatsappMessagesCol().orderBy('createdAt','desc');
+    if(fromDate) q = q.where('createdAt','>=', fromDate);
+    if(toDate) q = q.where('createdAt','<=', toDate);
+    q = q.limit(fromDate || toDate ? 1000 : 200);
+    const snap = await q.get();
     whatsappMessagesCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
     renderWhatsappMessagesLog();
   }catch(e){
     console.error('loadWhatsappMessagesLog error', e);
   }
+}
+
+function onWhatsappLogDateFilterChange(){
+  const fromVal = document.getElementById('whatsappLogFromDate').value;
+  const toVal = document.getElementById('whatsappLogToDate').value;
+  const fromDate = fromVal ? new Date(fromVal + 'T00:00:00') : null;
+  const toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
+  loadWhatsappMessagesLog(fromDate, toDate);
+}
+
+// Groups the six raw contactType values into the three buckets the log's type filter
+// offers — "customer" covers everything actually addressed to the customer (chat,
+// rating requests, coupons, and the "your order is on its way" delivery_notify), while
+// driver_notify and kitchen_notify are their own buckets since those messages go to
+// staff/drivers, not the customer.
+function whatsappLogGroupOf(contactType){
+  if(contactType === 'driver_notify' || contactType === 'kitchen_notify') return contactType;
+  return 'customer';
+}
+
+function clearWhatsappLogFilters(){
+  document.getElementById('whatsappLogSearchInput').value = '';
+  document.getElementById('whatsappLogTypeFilter').value = 'all';
+  document.getElementById('whatsappLogFromDate').value = '';
+  document.getElementById('whatsappLogToDate').value = '';
+  loadWhatsappMessagesLog(); // reset back to the default (unfiltered, most-recent-200) query
 }
 
 function renderWhatsappMessagesLog(){
@@ -4676,9 +4808,18 @@ function renderWhatsappMessagesLog(){
   if(!tbody) return;
 
   const query = (document.getElementById('whatsappLogSearchInput').value||'').trim().toLowerCase();
+  const typeFilter = document.getElementById('whatsappLogTypeFilter').value;
+
+  // Search text and the customer/driver/kitchen bucket are filtered client-side over
+  // whatever's currently in whatsappMessagesCache. The date range, by contrast, is
+  // applied server-side in loadWhatsappMessagesLog (see onWhatsappLogDateFilterChange)
+  // since the cache doesn't necessarily hold every message in that range.
   let rows = whatsappMessagesCache;
   if(query){
     rows = rows.filter(m=> (m.customerName||'').toLowerCase().includes(query) || (m.phone||'').includes(query));
+  }
+  if(typeFilter !== 'all'){
+    rows = rows.filter(m=> whatsappLogGroupOf(m.contactType) === typeFilter);
   }
 
   if(rows.length === 0){
@@ -5050,7 +5191,7 @@ function populateShiftBranchSelect(){
   const sel = document.getElementById('shiftBranchSelect');
   if(!sel) return;
   const current = sel.value;
-  sel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+  sel.innerHTML = selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
   if(current && [...sel.options].some(o=> o.value===current)) sel.value = current;
 }
 
@@ -5084,7 +5225,8 @@ function renderCurrentShiftStatus(){
     </div>
     <p style="font-size:13px; margin:6px 0;">👤 ${t('cashierName')}: ${escapeHtml(openShift.cashierName || '—')}</p>
     <p style="font-size:13px; margin:6px 0;">💵 ${t('openingCash')}: ${Number(openShift.openingCash||0).toFixed(2)}</p>
-    <button class="btn" style="background:var(--danger); width:100%; margin-top:10px;" onclick="openCloseShiftModal('${openShift.id}')">${t('closeShift')}</button>
+    <button class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="openShiftTransactionsModal('${openShift.id}')">🧾 ${t('viewShiftTransactions')}</button>
+    <button class="btn" style="background:var(--danger); width:100%; margin-top:8px;" onclick="openCloseShiftModal('${openShift.id}')">${t('closeShift')}</button>
   `;
 }
 
@@ -5138,6 +5280,10 @@ function computeShiftSummary(shift){
     const orderDate = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null;
     if(!orderDate || !openedAt) return false;
     return orderDate >= openedAt && orderDate <= closedAtBound;
+  }).sort((a,b)=>{
+    const da = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : 0;
+    const db_ = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : 0;
+    return db_ - da; // newest first, matching every other table in the app
   });
 
   const breakdown = { cash:0, card:0, wallet:0 };
@@ -5149,7 +5295,7 @@ function computeShiftSummary(shift){
   const totalSales = breakdown.cash + breakdown.card + breakdown.wallet;
   const expectedCash = Number(shift.openingCash||0) + breakdown.cash;
 
-  return { ordersCount: shiftOrders.length, breakdown, totalSales, expectedCash };
+  return { ordersCount: shiftOrders.length, breakdown, totalSales, expectedCash, orders: shiftOrders };
 }
 
 let closingShiftId = null;
@@ -5253,10 +5399,51 @@ function renderShiftsHistoryTable(){
       <td>${Number(s.totalSales||0).toFixed(2)}</td>
       <td style="color:${diffColor}; font-weight:600;">${diffText}</td>
       <td class="row-actions">
+        <button onclick="openShiftTransactionsModal('${s.id}')" title="${t('viewShiftTransactions')}">🧾</button>
         <button onclick="printShiftReceipt('${s.id}')" title="${t('print')}">🖨️</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// Order-by-order view behind a shift's totals — see the comment on the modal markup
+// for why this is effectively "this cashier's transactions" despite orders not having
+// their own staff/cashier field. Works for both the still-open shift (live, up to now)
+// and any closed shift in history (its frozen openedAt→closedAt window).
+function openShiftTransactionsModal(shiftId){
+  const shift = shiftsCache.find(s=> s.id === shiftId);
+  if(!shift){ showToast(t('nothingToExport')); return; }
+  const summary = computeShiftSummary(shift);
+
+  document.getElementById('shiftTransactionsMeta').textContent =
+    `${branchNameById(shift.branchId)} — ${shift.cashierName || '—'} · ${summary.ordersCount} ${t('colOrdersCount')} · ${summary.totalSales.toFixed(2)} ${t('colTotalSales')}`;
+
+  const table = document.getElementById('shiftTransactionsTable');
+  const empty = document.getElementById('shiftTransactionsEmpty');
+  const tbody = document.getElementById('shiftTransactionsTbody');
+
+  if(summary.orders.length === 0){
+    table.style.display = 'none'; empty.style.display = 'block';
+  } else {
+    table.style.display = 'table'; empty.style.display = 'none';
+    tbody.innerHTML = summary.orders.map(o=>{
+      const timeStr = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleTimeString(currentLang==='ar'?'ar-EG':'en-US', {hour:'2-digit', minute:'2-digit'}) : '—';
+      const typeLabel = t(o.orderType === 'dine-in' ? 'dineIn' : o.orderType === 'takeaway' ? 'takeaway' : 'delivery');
+      const paymentLabel = t(o.paymentMethod === 'card' ? 'paymentCard' : o.paymentMethod === 'wallet' ? 'paymentWallet' : 'paymentCash');
+      return `<tr>
+        <td style="white-space:nowrap; font-size:12px;">${timeStr}</td>
+        <td>#${o.id.slice(0,6).toUpperCase()}</td>
+        <td>${typeLabel}</td>
+        <td>${paymentLabel}</td>
+        <td>${Number(o.total||0).toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('shiftTransactionsModal').classList.add('active');
+}
+function closeShiftTransactionsModal(){
+  document.getElementById('shiftTransactionsModal').classList.remove('active');
 }
 
 function printShiftReceipt(shiftId){
@@ -5350,7 +5537,7 @@ function openOrderModal(){
   document.getElementById('orderPlatformSourceInput').value = 'internal';
 
   const branchSel = document.getElementById('orderBranchInput');
-  branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  branchSel.innerHTML = selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
 
   // Most orders in a session use the same branch and order type — re-selecting them
   // every single time is pure repeated data entry. Restore whatever was used last
@@ -5734,8 +5921,9 @@ function openStaffModal(staffId){
   editingStaffId = staffId || null;
   document.getElementById('staffModalTitle').textContent = staffId ? t('editStaff') : t('addStaff');
 
+  const editingStaff = staffId ? staffCache.find(x=> x.id === staffId) : null;
   const branchSel = document.getElementById('staffBranchInput');
-  branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  branchSel.innerHTML = selectableBranches(editingStaff ? editingStaff.branchId : null).map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
 
   if(staffId){
     const s = staffCache.find(x=> x.id === staffId);
@@ -5993,6 +6181,54 @@ function renderReports(){
   renderRevenueChart(validOrders);
   renderTopProducts(validOrders);
   renderBranchRevenue(validOrders);
+  renderPaymentMethodRevenue(validOrders);
+}
+
+// Same-period breakdown of revenue by cash/card/wallet — the aggregate view of what
+// computeShiftSummary tracks per-shift, but across the whole reports period+branch
+// filter instead of one cashier's drawer window. This is the one place non-cash
+// (card/wallet) sales are visible in total, for reconciling against terminal/wallet
+// settlement reports.
+function renderPaymentMethodRevenue(orders){
+  const table = document.getElementById('paymentMethodRevenueTable');
+  const empty = document.getElementById('paymentMethodRevenueEmpty');
+  const tbody = document.getElementById('paymentMethodRevenueTbody');
+  if(!table) return;
+
+  if(orders.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+
+  const byMethod = { cash:{count:0,revenue:0}, card:{count:0,revenue:0}, wallet:{count:0,revenue:0} };
+  orders.forEach(o=>{
+    const method = o.paymentMethod || 'cash';
+    if(!byMethod[method]) byMethod[method] = { count:0, revenue:0 };
+    byMethod[method].count += 1;
+    byMethod[method].revenue += (o.total||0);
+  });
+
+  const totalRevenue = Object.values(byMethod).reduce((sum,m)=> sum + m.revenue, 0);
+  const labelKey = { cash:'paymentCash', card:'paymentCard', wallet:'paymentWallet' };
+  const rows = Object.entries(byMethod)
+    .filter(([,m])=> m.count > 0)
+    .sort((a,b)=> b[1].revenue - a[1].revenue);
+
+  if(rows.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+  table.style.display='table'; empty.style.display='none';
+
+  tbody.innerHTML = rows.map(([method,m])=>{
+    const pct = totalRevenue > 0 ? Math.round((m.revenue/totalRevenue)*100) : 0;
+    return `<tr>
+      <td>${t(labelKey[method] || method)}</td>
+      <td>${m.count}</td>
+      <td>${m.revenue.toFixed(2)}</td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join('');
 }
 
 // Same period + branch filtering as getReportFilteredOrders(), applied to expenses so the
@@ -6307,7 +6543,7 @@ function openNotificationModal(){
   document.getElementById('notifBodyInput').value = '';
 
   const branchSel = document.getElementById('notifBranchInput');
-  branchSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+  branchSel.innerHTML = selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
 
   document.getElementById('notificationModal').classList.add('active');
 }
@@ -6776,7 +7012,7 @@ function populateExpenseBranchSelects(){
   const modalSel = document.getElementById('expenseBranchInput');
   const filterSel = document.getElementById('expenseBranchFilter');
   if(modalSel){
-    modalSel.innerHTML = branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+    modalSel.innerHTML = selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
   }
   if(filterSel){
     const current = filterSel.value;
@@ -7282,6 +7518,13 @@ async function renderPublicMenu(restaurantId, branchId){
     let products = productsSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
     const branchName = (branchDoc && branchDoc.exists) ? (branchDoc.data().name || '') : '';
 
+    // Same reasoning as customer-order.html: a printed/saved QR can outlive the branch
+    // being marked inactive, so a stale link shouldn't keep showing that branch's menu.
+    if(branchId && branchDoc && branchDoc.exists && branchDoc.data().status === 'inactive'){
+      view.innerHTML = `<div class="pm-error">⛔ ${t('branchClosedMenu')}</div>`;
+      return;
+    }
+
     if(products.length === 0){
       view.innerHTML = `<div class="pm-error">${t('menuNotAvailable')}</div>`;
       return;
@@ -7366,7 +7609,7 @@ function renderOrderPageQrSection(){
   const wrap = document.getElementById('orderPageQrBranchSelect');
   if(!wrap) return;
   wrap.innerHTML = `<option value="">${t('allBranches')}</option>` +
-    branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+    selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
   generateOrderPageQr();
 }
 
@@ -7390,7 +7633,7 @@ function renderMenuQrSection(){
   const wrap = document.getElementById('menuQrBranchSelect');
   if(!wrap) return;
   wrap.innerHTML = `<option value="">${t('allBranches')}</option>` +
-    branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+    selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
   generateMenuQr();
 }
 
