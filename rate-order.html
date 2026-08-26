@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>قيّم طلبك</title>
+<style>
+  :root{ --primary:#0f766e; --primary-dark:#0d5f58; --bg:#f4f6f7; --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --danger:#dc2626; --ok:#16a34a; }
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif; background:var(--bg); color:var(--text); margin:0; padding:16px; min-height:100vh; display:flex; align-items:center; justify-content:center;}
+  .hidden{display:none !important;}
+  .center-msg{text-align:center; padding:60px 20px; color:var(--muted);}
+  .card{background:#fff; border-radius:14px; padding:26px 22px; max-width:420px; width:100%; box-shadow:0 1px 6px rgba(0,0,0,.05); text-align:center;}
+  .card h1{font-size:18px; margin:0 0 4px;}
+  .card .sub{color:var(--muted); font-size:13px; margin:0 0 22px;}
+  .stars{display:flex; justify-content:center; gap:6px; margin-bottom:18px; direction:ltr;}
+  .stars button{background:none; border:none; font-size:38px; cursor:pointer; padding:0; line-height:1; color:#d1d5db; transition:transform .1s;}
+  .stars button:active{transform:scale(1.15);}
+  .stars button.filled{color:#f59e0b;}
+  .rating-label{font-size:13px; color:var(--muted); margin-bottom:18px; min-height:18px;}
+  .field{margin-bottom:16px; text-align:right;}
+  .field label{display:block; font-size:13px; margin-bottom:6px; color:var(--muted); font-weight:600;}
+  .field textarea{width:100%; padding:11px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical; min-height:70px;}
+  .submit-btn{width:100%; background:var(--primary); color:#fff; border:none; padding:14px; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer;}
+  .submit-btn:disabled{opacity:.5; cursor:not-allowed;}
+  .err-text{color:var(--danger); font-size:13px; margin-bottom:14px; display:none;}
+  .confirm-box .icon{font-size:52px; margin-bottom:14px;}
+  .confirm-box p{color:var(--muted); font-size:14px; line-height:1.7; margin:0;}
+</style>
+</head>
+<body>
+
+<div id="loadingView" class="center-msg">جاري التحميل...</div>
+<div id="errorView" class="center-msg hidden">⚠️ رابط التقييم غير صالح</div>
+
+<div id="app" class="card hidden">
+  <h1>🙏 قيّم طلبك</h1>
+  <p class="sub">إزاي كانت تجربتك معانا؟ رأيك بيهمنا</p>
+
+  <div class="stars" id="starsWrap">
+    <button type="button" data-n="5" onclick="selectRating(5)">★</button>
+    <button type="button" data-n="4" onclick="selectRating(4)">★</button>
+    <button type="button" data-n="3" onclick="selectRating(3)">★</button>
+    <button type="button" data-n="2" onclick="selectRating(2)">★</button>
+    <button type="button" data-n="1" onclick="selectRating(1)">★</button>
+  </div>
+  <div class="rating-label" id="ratingLabel"></div>
+
+  <div class="field">
+    <label>تعليق (اختياري)</label>
+    <textarea id="commentInput" placeholder="اكتب رأيك بالتفصيل..."></textarea>
+  </div>
+
+  <div class="err-text" id="formErr"></div>
+
+  <button class="submit-btn" id="submitBtn" onclick="submitRating()" disabled>إرسال التقييم</button>
+</div>
+
+<div id="confirmView" class="card confirm-box hidden">
+  <div class="icon" id="confirmIcon">✅</div>
+  <p id="confirmText">تم إرسال تقييمك، شكرًا لثقتك بينا! 🙏</p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ---------------------------------------------------------------------------
+   Standalone customer rating page. Opened via ?r=<restaurantId>&o=<orderId> — link sent
+   to the customer over WhatsApp once their order is delivered (see
+   requestOrderRatingViaWhatsapp in index.html). No login, and — same as
+   driver-track.html — no read access either: the Firestore rule only grants this page a
+   narrow, one-shot WRITE on customerRating (1-5 int) + customerRatingComment, gated on
+   the order already being 'delivered' and not rated yet. Because there's no read access,
+   this page can't confirm up front whether the order was already rated or isn't
+   delivered yet — it only finds out when the write itself is accepted or rejected.
+--------------------------------------------------------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyABB8IqmJGLDT8TbtZxK57KbPachPq3_wM",
+  authDomain: "restaurant-platform-b01a6.firebaseapp.com",
+  projectId: "restaurant-platform-b01a6",
+  storageBucket: "restaurant-platform-b01a6.firebasestorage.app",
+  messagingSenderId: "344618338704",
+  appId: "1:344618338704:web:6807d84be9e2007baccb15"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const params = new URLSearchParams(window.location.search);
+const restaurantId = params.get('r');
+const orderId = params.get('o');
+const orderRef = restaurantId && orderId ? db.collection('restaurants').doc(restaurantId).collection('orders').doc(orderId) : null;
+
+let selectedRating = 0;
+
+const RATING_LABELS = { 1:'مش عاجبك خالص 😞', 2:'محتاجين نتحسّن 😕', 3:'كويس 🙂', 4:'حلو جدًا 😃', 5:'ممتاز! 🤩' };
+
+function init(){
+  if(!orderRef){
+    document.getElementById('loadingView').classList.add('hidden');
+    document.getElementById('errorView').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('loadingView').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+}
+
+function selectRating(n){
+  selectedRating = n;
+  document.querySelectorAll('#starsWrap button').forEach(btn=>{
+    btn.classList.toggle('filled', Number(btn.dataset.n) <= n);
+  });
+  document.getElementById('ratingLabel').textContent = RATING_LABELS[n] || '';
+  document.getElementById('submitBtn').disabled = false;
+}
+
+async function submitRating(){
+  if(selectedRating < 1 || selectedRating > 5) return;
+  const errEl = document.getElementById('formErr');
+  errEl.style.display = 'none';
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري الإرسال...';
+
+  const comment = document.getElementById('commentInput').value.trim();
+  const data = { customerRating: selectedRating };
+  if(comment) data.customerRatingComment = comment;
+
+  try{
+    await orderRef.update(data);
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('confirmView').classList.remove('hidden');
+  }catch(e){
+    console.error('submitRating error', e);
+    btn.disabled = false;
+    btn.textContent = 'إرسال التقييم';
+    // No read access means we can't tell in advance whether this order was already
+    // rated or isn't delivered yet — a permission-denied here almost always means one
+    // of those two, so we surface a friendly explanation instead of a raw error.
+    if(e.code === 'permission-denied'){
+      errEl.textContent = 'يبدو إن الطلب ده اتقيّم قبل كده، أو لسه معملوش تسليم. لو فيه استفسار كلّم المطعم مباشرة.';
+    } else {
+      errEl.textContent = 'حصل خطأ أثناء إرسال التقييم، حاول تاني: ' + e.message;
+    }
+    errEl.style.display = 'block';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
