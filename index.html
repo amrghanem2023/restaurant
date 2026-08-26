@@ -2166,7 +2166,7 @@ const translations = {
     kitchenTimerElapsed:"الوقت من ساعة ما اتبعت للمطبخ", kitchenTimerNoEstimate:"محدّدش وقت تجهيز",
     kitchenTimerOverdue:"⚠️ اتأخر عن الوقت المحدد", actualPrepTime:"⏱️ زمن التجهيز الفعلي",
     waitingDriverConfirm:"في انتظار المندوب يأكد التسليم", cashCollectedYes:"💵 المندوب استلم الفلوس",
-    cashCollectedNo:"⚠️ لسه محدّدش إن المندوب استلم الفلوس",
+    cashCollectedNo:"⚠️ لسه محدّدش إن المندوب استلم الفلوس", kitchenArrivedAt:"وصل المطبخ",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
     pinMustBe4:"كود الدخول لازم يكون 4 أرقام على الأقل",
     couponList:"قائمة الكوبونات", addCoupon:"+ إضافة كوبون", noCouponsYet:"لا توجد كوبونات بعد",
@@ -2411,7 +2411,7 @@ const translations = {
     kitchenTimerElapsed:"Time since sent to kitchen", kitchenTimerNoEstimate:"No prep time set",
     kitchenTimerOverdue:"⚠️ Past the estimated time", actualPrepTime:"⏱️ Actual prep time",
     waitingDriverConfirm:"Waiting for the driver to confirm delivery", cashCollectedYes:"💵 Driver collected cash",
-    cashCollectedNo:"⚠️ Cash collection not yet confirmed",
+    cashCollectedNo:"⚠️ Cash collection not yet confirmed", kitchenArrivedAt:"Arrived at kitchen",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
     pinMustBe4:"Login code must be at least 4 digits",
     couponList:"Coupons List", addCoupon:"+ Add Coupon", noCouponsYet:"No coupons yet",
@@ -4583,6 +4583,7 @@ function renderKitchenMode(){
         ${paymentBadge}
       </div>
       <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">🏢 ${escapeHtml(branch?branch.name:'')} · ${escapeHtml(o.customerName||'')}</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">🕐 ${t('kitchenArrivedAt')}: ${kitchenArrivalTimeStr(o)}</div>
       <div id="kitchenTimer-${o.id}" style="text-align:center; font-size:26px; font-weight:800; letter-spacing:1px; padding:10px 0; margin-bottom:6px; border-radius:8px; background:#f4f6f7; color:var(--text);" data-order-id="${o.id}">--:--</div>
       <div id="kitchenTimerLabel-${o.id}" style="text-align:center; font-size:11px; color:var(--muted); margin-bottom:10px;">${t('kitchenTimerElapsed')}</div>
       <div style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:6px 0; margin-bottom:10px;">${itemsHtml}</div>
@@ -4624,6 +4625,16 @@ function formatMmSs(totalSeconds){
   const mm = Math.floor(s / 60);
   const ss = s % 60;
   return `${sign}${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+// The actual clock time the order arrived at the kitchen — shown as a plain HH:MM
+// alongside the live countdown, since "00:24" on its own doesn't answer "at what time
+// did this actually get sent to the kitchen?". Same createdAt fallback as the ticker,
+// for orders that were already "preparing" before preparingStartedAt existed.
+function kitchenArrivalTimeStr(o){
+  const start = toJsDate(o.preparingStartedAt) || toJsDate(o.createdAt);
+  if(!start) return '—';
+  return start.toLocaleTimeString(currentLang==='ar'?'ar-EG':'en-US', {hour:'2-digit', minute:'2-digit'});
 }
 
 function tickKitchenTimers(){
