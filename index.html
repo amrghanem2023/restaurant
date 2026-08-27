@@ -327,6 +327,9 @@
       <span class="nav-icon">🧾</span><span data-i18n="nav_orders">الطلبات</span>
       <span id="pendingPaymentNavBadge" style="display:none; background:var(--danger,#dc2626); color:#fff; font-size:10px; font-weight:700; border-radius:10px; padding:1px 7px; margin-inline-start:6px;">0</span>
     </div>
+    <div class="nav-item" data-module="archive" onclick="showModule('archive')">
+      <span class="nav-icon">🗄️</span><span data-i18n="nav_archive">الأرشيف</span>
+    </div>
     <div class="nav-item" data-module="staff" onclick="showModule('staff')">
       <span class="nav-icon">👥</span><span data-i18n="nav_staff">الموظفين والصلاحيات</span>
     </div>
@@ -1066,6 +1069,52 @@
               </tr>
             </thead>
             <tbody id="whatsappLogTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Archive Module: orders that have been delivered/cancelled for 24h+ (see
+         isArchivable in the script). Keeps the live orders board from accumulating
+         every completed order forever, while still keeping them searchable here. -->
+    <div id="module-archive" class="module-content" style="display:none;">
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="nav_archive">الأرشيف</h3>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px;" data-i18n="archiveDesc">الطلبات اللي اتسلّمت أو اتلغت من أكتر من 24 ساعة بتتنقل هنا تلقائيًا وتختفي من لوحة الطلبات.</p>
+        <div class="report-filters" style="margin-bottom:14px;">
+          <input type="text" id="archiveSearchInput" placeholder="🔍 اسم أو رقم أو رقم طلب" oninput="renderArchiveTable()" style="flex:1; min-width:140px;">
+          <select id="archiveStatusFilter" onchange="renderArchiveTable()">
+            <option value="all" data-i18n="allOrders">كل الحالات</option>
+            <option value="delivered" data-i18n="status_delivered">تم التسليم</option>
+            <option value="cancelled" data-i18n="status_cancelled">ملغي</option>
+          </select>
+          <select id="archiveBranchFilter" onchange="renderArchiveTable()"></select>
+          <input type="date" id="archiveFromDate" onchange="renderArchiveTable()" title="من تاريخ">
+          <input type="date" id="archiveToDate" onchange="renderArchiveTable()" title="إلى تاريخ">
+          <button class="btn btn-outline" style="font-size:12px; padding:8px 14px;" onclick="clearArchiveFilters()" data-i18n="clearFilters">مسح الفلاتر</button>
+        </div>
+        <div id="archiveWrap">
+          <div class="empty-state" id="archiveEmpty">
+            <div class="icon">🗄️</div>
+            <p data-i18n="noArchivedOrders">لا توجد طلبات مؤرشفة بعد</p>
+          </div>
+          <table id="archiveTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colDate">التاريخ</th>
+                <th data-i18n="colOrderNum">رقم الطلب</th>
+                <th data-i18n="colName">الاسم</th>
+                <th data-i18n="colBranch">الفرع</th>
+                <th data-i18n="orderType">النوع</th>
+                <th data-i18n="paymentMethod">طريقة الدفع</th>
+                <th data-i18n="colOrderTotal">الإجمالي</th>
+                <th data-i18n="colStatus">الحالة</th>
+                <th data-i18n="colRating">التقييم</th>
+              </tr>
+            </thead>
+            <tbody id="archiveTbody"></tbody>
           </table>
         </div>
       </div>
@@ -2053,6 +2102,8 @@ let currentRestaurantId = null;
 let currentLang = 'ar';
 let editingBranchId = null;
 let branchesCache = [];
+let archiveBoundaryInterval = null;
+const ARCHIVE_AFTER_MS = 24 * 60 * 60 * 1000; // see isArchivable()
 
 // Branches marked "inactive" (closed/paused) should still show up in historical
 // filters and reports — their past orders/expenses are real — but shouldn't be
@@ -2333,6 +2384,8 @@ const translations = {
     selectAtLeastOneCustomer:"اختر عميل واحد على الأقل أولاً", send:"إرسال", close:"إغلاق",
     ingredientsWillBeAdded:"مكوّن سيتم إضافته",
     nav_shifts:"الورديات",
+    nav_archive:"الأرشيف", archiveDesc:"الطلبات اللي اتسلّمت أو اتلغت من أكتر من 24 ساعة بتتنقل هنا تلقائيًا وتختفي من لوحة الطلبات.",
+    allOrders:"كل الحالات", noArchivedOrders:"لا توجد طلبات مؤرشفة بعد",
     paymentMethod:"طريقة الدفع", paymentCash:"كاش", paymentCard:"كارت", paymentWallet:"محفظة إلكترونية",
     payment_cash:"كاش", payment_card:"كارت", payment_wallet:"محفظة إلكترونية",
     currentShiftStatus:"حالة الوردية الحالية", branchForShift:"الفرع",
@@ -2578,6 +2631,8 @@ const translations = {
     selectAtLeastOneCustomer:"Select at least one customer first", send:"Send", close:"Close",
     ingredientsWillBeAdded:"ingredients will be added",
     nav_shifts:"Shifts",
+    nav_archive:"Archive", archiveDesc:"Orders delivered or cancelled 24h+ ago move here automatically and disappear from the orders board.",
+    allOrders:"All statuses", noArchivedOrders:"No archived orders yet",
     paymentMethod:"Payment Method", paymentCash:"Cash", paymentCard:"Card", paymentWallet:"E-Wallet",
     payment_cash:"Cash", payment_card:"Card", payment_wallet:"E-Wallet",
     currentShiftStatus:"Current Shift Status", branchForShift:"Branch",
@@ -2704,6 +2759,17 @@ if(publicMenuRestaurantId){
     await loadShifts();
     await loadCustomerContacts();
     startOrdersListener();
+    // No Firestore write happens purely because time passed, so an order sitting at
+    // exactly the 24h archive boundary wouldn't re-render on its own if the dashboard
+    // is just left open. A slow poll (5 min) is enough to catch that transition without
+    // re-fetching anything — it just re-runs the same filters already in ordersCache.
+    if(archiveBoundaryInterval) clearInterval(archiveBoundaryInterval);
+    archiveBoundaryInterval = setInterval(()=>{
+      renderOrdersBoard();
+      if(document.getElementById('module-archive') && document.getElementById('module-archive').style.display !== 'none'){
+        renderArchiveTable();
+      }
+    }, 5 * 60 * 1000);
   } else {
     currentUser = null;
     currentRestaurantId = null;
@@ -2729,6 +2795,7 @@ function showModule(name){
   if(name === 'whatsappLog') loadWhatsappMessagesLog();
   if(name === 'customers') renderCustomersTable();
   if(name === 'shifts'){ populateShiftBranchSelect(); renderCurrentShiftStatus(); renderShiftsHistoryTable(); }
+  if(name === 'archive'){ populateArchiveBranchFilter(); renderArchiveTable(); }
 }
 
 function onBranchFilterChange(){
@@ -3841,6 +3908,9 @@ function startOrdersListener(){
     if(document.getElementById('module-customers') && document.getElementById('module-customers').style.display !== 'none'){
       renderCustomersTable();
     }
+    if(document.getElementById('module-archive') && document.getElementById('module-archive').style.display !== 'none'){
+      renderArchiveTable();
+    }
   }, err=> console.error('orders listener error', err));
 }
 
@@ -3871,11 +3941,111 @@ function updatePendingPaymentBadge(){
   badge.style.display = count > 0 ? 'inline-block' : 'none';
 }
 
+// An order is ready to leave the live board once it's been delivered/cancelled for
+// 24h+. closedAt (set in updateOrderStatus and driver-track.html's markDelivered) is
+// the real moment that happened; updatedAt is a fallback for any older order that
+// predates closedAt existing. Orders with neither timestamp (shouldn't happen for new
+// data, but covers pre-existing rows) are deliberately kept visible rather than
+// silently hidden.
+function isArchivable(o){
+  if(o.status !== 'delivered' && o.status !== 'cancelled') return false;
+  const closedAt = toJsDate(o.closedAt) || toJsDate(o.updatedAt);
+  if(!closedAt) return false;
+  return (Date.now() - closedAt.getTime()) >= ARCHIVE_AFTER_MS;
+}
+
+function populateArchiveBranchFilter(){
+  const sel = document.getElementById('archiveBranchFilter');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="all">${t('allBranches')}</option>` +
+    branchesCache.map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
+  sel.value = current && [...sel.options].some(o=>o.value===current) ? current : 'all';
+}
+
+function clearArchiveFilters(){
+  document.getElementById('archiveSearchInput').value = '';
+  document.getElementById('archiveStatusFilter').value = 'all';
+  document.getElementById('archiveBranchFilter').value = 'all';
+  document.getElementById('archiveFromDate').value = '';
+  document.getElementById('archiveToDate').value = '';
+  renderArchiveTable();
+}
+
+function renderArchiveTable(){
+  const table = document.getElementById('archiveTable');
+  const empty = document.getElementById('archiveEmpty');
+  const tbody = document.getElementById('archiveTbody');
+  if(!table) return;
+
+  const query = (document.getElementById('archiveSearchInput').value||'').trim().toLowerCase();
+  const statusFilter = document.getElementById('archiveStatusFilter').value;
+  const branchFilter = document.getElementById('archiveBranchFilter').value;
+  const fromVal = document.getElementById('archiveFromDate').value;
+  const toVal = document.getElementById('archiveToDate').value;
+  const fromDate = fromVal ? new Date(fromVal + 'T00:00:00') : null;
+  const toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
+
+  let rows = ordersCache.filter(isArchivable);
+  if(statusFilter !== 'all') rows = rows.filter(o=> o.status === statusFilter);
+  if(branchFilter && branchFilter !== 'all') rows = rows.filter(o=> o.branchId === branchFilter);
+  if(query){
+    rows = rows.filter(o=>
+      (o.customerName||'').toLowerCase().includes(query) ||
+      (o.customerPhone||'').includes(query) ||
+      o.id.toLowerCase().includes(query)
+    );
+  }
+  if(fromDate || toDate){
+    rows = rows.filter(o=>{
+      const d = toJsDate(o.closedAt) || toJsDate(o.updatedAt);
+      if(!d) return false;
+      if(fromDate && d < fromDate) return false;
+      if(toDate && d > toDate) return false;
+      return true;
+    });
+  }
+  rows = rows.slice().sort((a,b)=>{
+    const da = toJsDate(a.closedAt) || toJsDate(a.updatedAt) || 0;
+    const db_ = toJsDate(b.closedAt) || toJsDate(b.updatedAt) || 0;
+    return db_ - da;
+  });
+
+  if(rows.length === 0){
+    table.style.display = 'none'; empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table'; empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(o=>{
+    const closedAt = toJsDate(o.closedAt) || toJsDate(o.updatedAt);
+    const dateStr = closedAt ? closedAt.toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '—';
+    const branch = branchesCache.find(b=> b.id === o.branchId);
+    const typeLabel = t(o.orderType === 'dine-in' ? 'dineIn' : o.orderType === 'takeaway' ? 'takeaway' : 'delivery');
+    const paymentLabel = t(o.paymentMethod === 'card' ? 'paymentCard' : o.paymentMethod === 'wallet' ? 'paymentWallet' : 'paymentCash');
+    const statusBadge = o.status === 'delivered'
+      ? `<span class="stock-badge" style="background:#f0fdf4; color:var(--ok);">${t('status_delivered')}</span>`
+      : `<span class="stock-badge" style="background:#fef2f2; color:var(--danger);">${t('status_cancelled')}</span>`;
+    const ratingStr = o.customerRating ? '⭐'.repeat(o.customerRating) : '—';
+    return `<tr>
+      <td style="white-space:nowrap; font-size:12px;">${dateStr}</td>
+      <td>#${o.id.slice(0,6).toUpperCase()}</td>
+      <td>${escapeHtml(o.customerName||'—')}</td>
+      <td>${escapeHtml(branch?branch.name:'—')}</td>
+      <td>${typeLabel}</td>
+      <td>${paymentLabel}</td>
+      <td>${Number(o.total||0).toFixed(2)}</td>
+      <td>${statusBadge}</td>
+      <td>${ratingStr}</td>
+    </tr>`;
+  }).join('');
+}
+
 function renderOrdersBoard(){
   const board = document.getElementById('ordersBoard');
   if(!board) return;
   board.innerHTML = ORDER_STATUSES.map(status=>{
-    const ordersInStatus = ordersCache.filter(o=> (o.status||'pending') === status);
+    const ordersInStatus = ordersCache.filter(o=> (o.status||'pending') === status && !isArchivable(o));
     const cardsHtml = ordersInStatus.length === 0
       ? `<div style="text-align:center; color:var(--muted); font-size:12px; padding:20px 0;">${t('noOrdersInStatus')}</div>`
       : ordersInStatus.map(o=> renderOrderCard(o)).join('');
@@ -3956,18 +4126,16 @@ function renderOrderCard(o){
     </div>`;
   }
 
-  // Star-rating capture — only offered once an order is delivered (the natural point to
-  // ask), and only shown if not already rated. Purely internal (staff taps on behalf of
-  // the customer after asking, or a customer using a shared device); no external API.
+  // Star-rating display — the rating itself is the customer's alone to give, submitted
+  // through rate-order.html (see requestOrderRatingViaWhatsapp). Staff can only trigger
+  // sending that link; there's deliberately no clickable "rate on the customer's behalf"
+  // control here anymore, even for a delivered order that hasn't been rated yet.
   let ratingHtml = '';
   if(o.status === 'delivered'){
     if(o.customerRating){
       ratingHtml = `<div style="font-size:13px; margin:4px 0;">${'⭐'.repeat(o.customerRating)}${'☆'.repeat(5-o.customerRating)}</div>`;
     } else if(o.customerPhone){
-      ratingHtml = `<div class="rating-stars" style="font-size:16px; margin:4px 0; cursor:pointer;">
-        ${[1,2,3,4,5].map(n=> `<span onclick="setOrderRating('${o.id}', ${n})">☆</span>`).join('')}
-      </div>
-      <button class="btn btn-outline" style="width:100%; font-size:11px; padding:5px; margin-bottom:6px;" onclick="requestOrderRatingViaWhatsapp('${o.id}')">📩 ${t('sendRatingLink')}</button>`;
+      ratingHtml = `<button class="btn btn-outline" style="width:100%; font-size:11px; padding:5px; margin-bottom:6px;" onclick="requestOrderRatingViaWhatsapp('${o.id}')">📩 ${t('sendRatingLink')}</button>`;
     }
   }
 
@@ -3993,14 +4161,9 @@ function renderOrderCard(o){
   </div>`;
 }
 
-async function setOrderRating(orderId, rating){
-  try{
-    await ordersCol().doc(orderId).update({ customerRating: rating });
-  }catch(e){
-    console.error('setOrderRating error', e);
-    showToast(e.message);
-  }
-}
+// setOrderRating was removed on purpose — rating is exclusively the customer's action,
+// submitted through rate-order.html, never something staff can set on their behalf from
+// the dashboard. (See requestOrderRatingViaWhatsapp for sending that link.)
 
 // Same ?menu=&branch= style convention as the other customer-facing pages — points at
 // rate-order.html, deployed alongside index.html and customer-order.html.
@@ -4036,13 +4199,18 @@ async function updateOrderStatus(orderId, newStatus){
     // preparingStartedAt/readyAt capture the real moments the order entered the kitchen
     // and left it "جاهز", independent of updatedAt (which gets overwritten on every
     // later status change). These are what the kitchen countdown timer and the actual
-    // prep-duration display are built on.
+    // prep-duration display are built on. closedAt marks the moment an order became
+    // delivered/cancelled — used only to decide when it's old enough to drop off the
+    // live orders board into the Archive (see isArchivable/renderOrdersBoard).
     const statusPayload = { status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
     if(newStatus === 'preparing'){
       statusPayload.preparingStartedAt = firebase.firestore.FieldValue.serverTimestamp();
     }
     if(newStatus === 'ready'){
       statusPayload.readyAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    if(newStatus === 'delivered' || newStatus === 'cancelled'){
+      statusPayload.closedAt = firebase.firestore.FieldValue.serverTimestamp();
     }
     await ordersCol().doc(orderId).update(statusPayload);
 
