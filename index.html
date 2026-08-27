@@ -2249,6 +2249,9 @@ const translations = {
     kitchenTimerOverdue:"⚠️ اتأخر عن الوقت المحدد", actualPrepTime:"⏱️ زمن التجهيز الفعلي",
     waitingDriverConfirm:"في انتظار المندوب يأكد التسليم", cashCollectedYes:"💵 المندوب استلم الفلوس",
     cashCollectedNo:"⚠️ لسه محدّدش إن المندوب استلم الفلوس", kitchenArrivedAt:"وصل المطبخ",
+    cashHandedToTillYes:"✅ الفلوس اتسلمت للخزينة", cashHandedToTillNo:"🏦 الفلوس لسه مع المندوب، مسلمتش الخزينة",
+    confirmCashHandedToTill:"تأكيد استلام الخزينة للفلوس", cashOutstandingWithDrivers:"🛵 كاش لسه مع المناديب",
+    cashOutstandingWarning:"فيه كاش لسه مع مناديب التوصيل مسلموش للخزينة — الرصيد الفعلي في الدرج ممكن يكون أقل من المتوقع لحد ما يرجعوه.",
     kitchenTodayLogBtn:"📋 سجل اليوم", kitchenTodayLogTitle:"📋 الطلبات اللي خلصت تجهيز النهاردة",
     kitchenNoTodayLog:"لسه مفيش طلبات خلصت تجهيز النهاردة",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
@@ -2498,6 +2501,9 @@ const translations = {
     kitchenTimerOverdue:"⚠️ Past the estimated time", actualPrepTime:"⏱️ Actual prep time",
     waitingDriverConfirm:"Waiting for the driver to confirm delivery", cashCollectedYes:"💵 Driver collected cash",
     cashCollectedNo:"⚠️ Cash collection not yet confirmed", kitchenArrivedAt:"Arrived at kitchen",
+    cashHandedToTillYes:"✅ Cash handed to the till", cashHandedToTillNo:"🏦 Cash still with the driver, not in the till yet",
+    confirmCashHandedToTill:"Confirm cash received at till", cashOutstandingWithDrivers:"🛵 Cash still with drivers",
+    cashOutstandingWarning:"Some delivery cash hasn't been handed to the till yet — the actual drawer balance may be lower than expected until it's returned.",
     kitchenTodayLogBtn:"📋 Today's Log", kitchenTodayLogTitle:"📋 Orders that finished prep today",
     kitchenNoTodayLog:"No orders have finished prep today yet",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
@@ -3979,6 +3985,47 @@ function updatePendingPaymentBadge(){
   badge.style.display = count > 0 ? 'inline-block' : 'none';
 }
 
+// Cash on a delivery order physically changes hands TWICE — customer→driver, then
+// driver→till — and each step needs its own confirmation. cashCollected (driver-only,
+// set from driver-track.html) covers the first. This covers the second: only staff at
+// the register can confirm the driver actually handed the cash back, since that's a
+// real-world event happening at the counter, not something the driver's phone can
+// attest to on its own.
+function renderCashHandoffHtml(o, isDelivery){
+  if(!isDelivery || o.status !== 'delivered' || o.paymentMethod === 'bank_transfer') return '';
+  if(!o.cashCollected){
+    return `<div style="font-size:11px; margin-bottom:4px; color:var(--danger);">${t('cashCollectedNo')}</div>`;
+  }
+  if(o.cashHandedToTill){
+    return `<div style="font-size:11px; margin-bottom:4px; color:var(--ok);">${t('cashHandedToTillYes')}</div>`;
+  }
+  return `<div style="font-size:11px; margin-bottom:4px; color:#b45309;">${t('cashHandedToTillNo')}</div>
+    <button class="btn btn-outline" style="width:100%; font-size:11px; padding:6px; margin-bottom:6px;" onclick="confirmCashHandedToTill('${o.id}')">🏦 ${t('confirmCashHandedToTill')}</button>`;
+}
+
+async function confirmCashHandedToTill(orderId){
+  try{
+    await ordersCol().doc(orderId).update({
+      cashHandedToTill: true,
+      cashHandedToTillAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){
+    console.error('confirmCashHandedToTill error', e);
+    showToast(e.message);
+  }
+}
+
+// Whether a cash order's money should count toward what SHOULD physically be in the
+// till right now. Dine-in/takeaway cash is paid straight at the register, so it counts
+// the moment the order exists. Delivery COD cash is in the driver's pocket until
+// confirmCashHandedToTill runs — counting it earlier would make the drawer count look
+// right on paper while actually being short in reality.
+function isCashCountedInTill(o){
+  if((o.paymentMethod||'cash') !== 'cash') return false;
+  if(o.orderType !== 'delivery') return true;
+  return !!o.cashHandedToTill;
+}
+
 // An order is ready to leave the live board once it's been delivered/cancelled for
 // 24h+. closedAt (set in updateOrderStatus and driver-track.html's markDelivered) is
 // the real moment that happened; updatedAt is a fallback for any older order that
@@ -4189,7 +4236,7 @@ function renderOrderCard(o){
     ${o.paymentMethod === 'bank_transfer' && o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" style="font-size:11px; display:block; margin-bottom:4px;">🧾 ${t('viewReceipt')}</a>` : ''}
     ${o.status === 'preparing' && o.estimatedPrepMinutes ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⏱️ ${t('prepMinutes')}: ${o.estimatedPrepMinutes}</div>` : ''}
     ${o.preparingStartedAt && o.readyAt ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${t('actualPrepTime')}: ${formatDurationMinutes(toJsDate(o.preparingStartedAt), toJsDate(o.readyAt))}</div>` : ''}
-    ${isDelivery && o.status === 'delivered' && o.paymentMethod !== 'bank_transfer' ? `<div style="font-size:11px; margin-bottom:4px; color:${o.cashCollected ? 'var(--ok)' : 'var(--danger)'};">${o.cashCollected ? t('cashCollectedYes') : t('cashCollectedNo')}</div>` : ''}
+    ${renderCashHandoffHtml(o, isDelivery)}
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
     ${shortageHtml}
@@ -5485,6 +5532,7 @@ function renderCurrentShiftStatus(){
   }
 
   const openedAtStr = openShift.openedAt && openShift.openedAt.toDate ? openShift.openedAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
+  const liveSummary = computeShiftSummary(openShift);
   wrap.innerHTML = `
     <div class="stat-card" style="margin-bottom:12px;">
       <div class="label">${t('shiftOpenSince')}</div>
@@ -5492,6 +5540,7 @@ function renderCurrentShiftStatus(){
     </div>
     <p style="font-size:13px; margin:6px 0;">👤 ${t('cashierName')}: ${escapeHtml(openShift.cashierName || '—')}</p>
     <p style="font-size:13px; margin:6px 0;">💵 ${t('openingCash')}: ${Number(openShift.openingCash||0).toFixed(2)}</p>
+    ${liveSummary.cashOutstandingWithDrivers > 0 ? `<p style="font-size:13px; margin:6px 0; color:#b45309;">🛵 ${t('cashOutstandingWithDrivers')}: ${liveSummary.cashOutstandingWithDrivers.toFixed(2)}</p>` : ''}
     <button class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="openShiftTransactionsModal('${openShift.id}')">🧾 ${t('viewShiftTransactions')}</button>
     <button class="btn" style="background:var(--danger); width:100%; margin-top:8px;" onclick="openCloseShiftModal('${openShift.id}')">${t('closeShift')}</button>
   `;
@@ -5554,15 +5603,26 @@ function computeShiftSummary(shift){
   });
 
   const breakdown = { cash:0, card:0, wallet:0 };
+  let cashOutstandingWithDrivers = 0; // cash orders where the driver hasn't handed it to the till yet
   shiftOrders.forEach(o=>{
     const method = o.paymentMethod || 'cash';
     breakdown[method] = (breakdown[method]||0) + Number(o.total||0);
+    if(method === 'cash' && !isCashCountedInTill(o)){
+      cashOutstandingWithDrivers += Number(o.total||0);
+    }
   });
 
+  // totalSales stays the full revenue figure regardless of where the cash physically
+  // is right now — it's real money earned either way. expectedCash, by contrast, is
+  // "what should be in the drawer if I counted it this second", so it only includes
+  // cash that's actually confirmed back at the till (see isCashCountedInTill) —
+  // otherwise the drawer would look right on paper while a driver still has cash in
+  // their pocket that hasn't been handed over.
   const totalSales = breakdown.cash + breakdown.card + breakdown.wallet;
-  const expectedCash = Number(shift.openingCash||0) + breakdown.cash;
+  const cashInTill = breakdown.cash - cashOutstandingWithDrivers;
+  const expectedCash = Number(shift.openingCash||0) + cashInTill;
 
-  return { ordersCount: shiftOrders.length, breakdown, totalSales, expectedCash, orders: shiftOrders };
+  return { ordersCount: shiftOrders.length, breakdown, totalSales, expectedCash, cashOutstandingWithDrivers, orders: shiftOrders };
 }
 
 let closingShiftId = null;
@@ -5577,7 +5637,9 @@ function openCloseShiftModal(shiftId){
     <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${t('paymentCard')}</span><b>${summary.breakdown.card.toFixed(2)}</b></div>
     <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${t('paymentWallet')}</span><b>${summary.breakdown.wallet.toFixed(2)}</b></div>
     <div style="display:flex; justify-content:space-between; margin-bottom:4px; border-top:1px solid var(--border); padding-top:6px; margin-top:6px;"><span>${t('colOrdersCount')}</span><b>${summary.ordersCount}</b></div>
+    ${summary.cashOutstandingWithDrivers > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#b45309;"><span>${t('cashOutstandingWithDrivers')}</span><b>${summary.cashOutstandingWithDrivers.toFixed(2)}</b></div>` : ''}
     <div style="display:flex; justify-content:space-between;"><span>${t('expectedCash')}</span><b style="color:var(--primary);">${summary.expectedCash.toFixed(2)}</b></div>
+    ${summary.cashOutstandingWithDrivers > 0 ? `<div style="font-size:11px; color:#b45309; margin-top:8px;">⚠️ ${t('cashOutstandingWarning')}</div>` : ''}
   `;
   document.getElementById('shiftClosingCashInput').value = '';
   document.getElementById('shiftDifferencePreview').textContent = '';
