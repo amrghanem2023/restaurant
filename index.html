@@ -2031,7 +2031,38 @@
 <div id="kitchenModeScreen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:200; overflow-y:auto;">
   <div style="background:var(--primary-dark,#0d5f58); color:#fff; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:2;">
     <h2 style="margin:0; font-size:18px;" data-i18n="kitchenModeTitle">🍳 شاشة المطبخ</h2>
-    <button onclick="exitKitchenMode()" style="background:rgba(255,255,255,.15); color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;" data-i18n="exitKitchenMode">🔒 خروج</button>
+    <div style="display:flex; gap:8px;">
+      <button onclick="toggleKitchenTodayLog()" style="background:rgba(255,255,255,.15); color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;" data-i18n="kitchenTodayLogBtn">📋 سجل اليوم</button>
+      <button onclick="exitKitchenMode()" style="background:rgba(255,255,255,.15); color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;" data-i18n="exitKitchenMode">🔒 خروج</button>
+    </div>
+  </div>
+  <!-- Today's completed-prep log: every order that left "preparing" today (readyAt is
+       today), regardless of its status now — so it still shows an order that later got
+       delivered or even cancelled, since the kitchen's job on it is what's being
+       logged, not its full lifecycle. Hidden by default; toggled from the header
+       button since it's a look-back tool, not something needed on every glance at the
+       board. -->
+  <div id="kitchenTodayLogWrap" style="display:none; padding:0 18px 18px;">
+    <div style="background:#fff; border-radius:12px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,.06);">
+      <h3 style="font-size:14px; margin:0 0 10px;" data-i18n="kitchenTodayLogTitle">📋 الطلبات اللي خلصت تجهيز النهاردة</h3>
+      <div style="overflow-x:auto;">
+        <table id="kitchenTodayLogTable" style="width:100%; font-size:13px; border-collapse:collapse;">
+          <thead>
+            <tr style="text-align:start; color:var(--muted); font-size:11px;">
+              <th style="padding:6px 8px;" data-i18n="kitchenArrivedAt">وصل المطبخ</th>
+              <th style="padding:6px 8px;" data-i18n="colOrderNum">رقم الطلب</th>
+              <th style="padding:6px 8px;" data-i18n="actualPrepTime">⏱️ زمن التجهيز الفعلي</th>
+              <th style="padding:6px 8px;" data-i18n="colStatus">الحالة</th>
+            </tr>
+          </thead>
+          <tbody id="kitchenTodayLogTbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="kitchenTodayLogEmpty" style="display:none; padding:20px 0;">
+        <div class="icon">📋</div>
+        <p data-i18n="kitchenNoTodayLog">لسه مفيش طلبات خلصت تجهيز النهاردة</p>
+      </div>
+    </div>
   </div>
   <div id="kitchenOrdersGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; padding:18px;"></div>
   <div class="empty-state" id="kitchenEmptyState" style="display:none; margin:40px;">
@@ -2218,6 +2249,8 @@ const translations = {
     kitchenTimerOverdue:"⚠️ اتأخر عن الوقت المحدد", actualPrepTime:"⏱️ زمن التجهيز الفعلي",
     waitingDriverConfirm:"في انتظار المندوب يأكد التسليم", cashCollectedYes:"💵 المندوب استلم الفلوس",
     cashCollectedNo:"⚠️ لسه محدّدش إن المندوب استلم الفلوس", kitchenArrivedAt:"وصل المطبخ",
+    kitchenTodayLogBtn:"📋 سجل اليوم", kitchenTodayLogTitle:"📋 الطلبات اللي خلصت تجهيز النهاردة",
+    kitchenNoTodayLog:"لسه مفيش طلبات خلصت تجهيز النهاردة",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
     pinMustBe4:"كود الدخول لازم يكون 4 أرقام على الأقل",
     couponList:"قائمة الكوبونات", addCoupon:"+ إضافة كوبون", noCouponsYet:"لا توجد كوبونات بعد",
@@ -2465,6 +2498,8 @@ const translations = {
     kitchenTimerOverdue:"⚠️ Past the estimated time", actualPrepTime:"⏱️ Actual prep time",
     waitingDriverConfirm:"Waiting for the driver to confirm delivery", cashCollectedYes:"💵 Driver collected cash",
     cashCollectedNo:"⚠️ Cash collection not yet confirmed", kitchenArrivedAt:"Arrived at kitchen",
+    kitchenTodayLogBtn:"📋 Today's Log", kitchenTodayLogTitle:"📋 Orders that finished prep today",
+    kitchenNoTodayLog:"No orders have finished prep today yet",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
     pinMustBe4:"Login code must be at least 4 digits",
     couponList:"Coupons List", addCoupon:"+ Add Coupon", noCouponsYet:"No coupons yet",
@@ -3911,6 +3946,9 @@ function startOrdersListener(){
     if(document.getElementById('module-archive') && document.getElementById('module-archive').style.display !== 'none'){
       renderArchiveTable();
     }
+    if(document.getElementById('kitchenTodayLogWrap') && document.getElementById('kitchenTodayLogWrap').style.display !== 'none'){
+      renderKitchenTodayLog();
+    }
   }, err=> console.error('orders listener error', err));
 }
 
@@ -4706,6 +4744,7 @@ function submitKitchenPin(){
 function enterKitchenMode(staffMember){
   kitchenModeActive = true;
   document.getElementById('kitchenModeScreen').style.display = 'block';
+  document.getElementById('kitchenTodayLogWrap').style.display = 'none'; // start collapsed each time
   renderKitchenMode();
   startKitchenTimerLoop();
 }
@@ -4713,6 +4752,55 @@ function exitKitchenMode(){
   kitchenModeActive = false;
   document.getElementById('kitchenModeScreen').style.display = 'none';
   stopKitchenTimerLoop();
+}
+
+// Today's completed-prep log — a simple show/hide toggle (not tied to the live
+// orders listener) since it's only opened on demand, not something that needs to
+// stay perfectly live-updating while the kitchen is heads-down cooking.
+function toggleKitchenTodayLog(){
+  const wrap = document.getElementById('kitchenTodayLogWrap');
+  const opening = wrap.style.display === 'none';
+  wrap.style.display = opening ? 'block' : 'none';
+  if(opening) renderKitchenTodayLog();
+}
+
+function renderKitchenTodayLog(){
+  const table = document.getElementById('kitchenTodayLogTable');
+  const empty = document.getElementById('kitchenTodayLogEmpty');
+  const tbody = document.getElementById('kitchenTodayLogTbody');
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0,0,0,0);
+
+  // readyAt is the moment the kitchen's own job on the order finished, independent of
+  // where the order went afterward (delivered, still out for delivery, even
+  // cancelled later) — that's why this filters on readyAt rather than status.
+  const rows = ordersCache
+    .filter(o=>{
+      const readyAt = toJsDate(o.readyAt);
+      return readyAt && readyAt >= startOfToday;
+    })
+    .sort((a,b)=> toJsDate(b.readyAt) - toJsDate(a.readyAt));
+
+  if(rows.length === 0){
+    table.style.display = 'none'; empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table'; empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(o=>{
+    const arrivedStr = kitchenArrivalTimeStr(o);
+    const durationStr = o.preparingStartedAt && o.readyAt
+      ? formatDurationMinutes(toJsDate(o.preparingStartedAt), toJsDate(o.readyAt))
+      : '—';
+    const statusBadgeColor = o.status === 'cancelled' ? 'var(--danger)' : o.status === 'delivered' ? 'var(--ok)' : 'var(--muted)';
+    return `<tr style="border-top:1px solid var(--border);">
+      <td style="padding:6px 8px; white-space:nowrap;">${arrivedStr}</td>
+      <td style="padding:6px 8px;">#${o.id.slice(0,6).toUpperCase()}</td>
+      <td style="padding:6px 8px;">${durationStr}</td>
+      <td style="padding:6px 8px; color:${statusBadgeColor};">${t('status_'+(o.status||'pending'))}</td>
+    </tr>`;
+  }).join('');
 }
 
 // Kitchen sees only what it needs to act on: orders already being prepared. Payment
