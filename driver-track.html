@@ -202,11 +202,11 @@ async function markDelivered(){
   btn.disabled = true;
   btn.textContent = 'جاري التأكيد...';
   try{
-    const updateData = { status: 'delivered' };
+    const updateData = { status: 'delivered', closedAt: firebase.firestore.FieldValue.serverTimestamp() };
     // Only ever send cashCollected on COD orders — the Firestore rule for this anonymous
-    // write only allows ['status','cashCollected'] as the changed keys, so sending it on
-    // a bank-transfer order (where it's meaningless) is avoided rather than relied on the
-    // rule to silently ignore.
+    // write only allows ['status','cashCollected','closedAt'] as the changed keys, so
+    // sending it on a bank-transfer order (where it's meaningless) is avoided rather
+    // than relying on the rule to silently ignore it.
     if(isCod) updateData.cashCollected = true;
     await orderRef.update(updateData);
     stopSharing();
