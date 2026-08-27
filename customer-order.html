@@ -78,12 +78,18 @@
   .confirm-box p{color:var(--muted); font-size:14px; line-height:1.7;}
 
   .err-text{color:var(--danger); font-size:12px; margin-top:-8px; margin-bottom:10px; display:none;}
+
+  .card{background:#fff; border-radius:14px; padding:22px 20px; max-width:420px; width:100%; margin:40px auto; box-shadow:0 1px 6px rgba(0,0,0,.05);}
+  .branch-pick-btn{display:block; width:100%; text-align:right; padding:14px 16px; margin-bottom:10px; border:1px solid var(--border); border-radius:10px; background:#fff; font-size:14px; font-weight:600; cursor:pointer;}
+  .branch-pick-btn:hover{border-color:var(--primary); background:#f0fdfa;}
 </style>
 </head>
 <body>
 
 <div id="loadingView" class="center-msg">جاري تحميل القائمة...</div>
 <div id="errorView" class="center-msg hidden">القائمة غير متاحة حاليًا</div>
+<div id="branchClosedView" class="center-msg hidden">⛔ الفرع ده مقفول حاليًا ومش بيستقبل طلبات</div>
+<div id="branchPickerView" class="hidden"></div>
 
 <div id="menuApp" class="hidden">
   <div class="pm-header">
@@ -204,6 +210,8 @@ let products = [];
 let deliveryZones = [];
 let publicSettings = {};
 let branchName = '';
+let allBranches = [];
+let selectedBranchId = branchIdParam || null; // set once we know which branch this order is for
 let cart = {}; // productId -> qty
 let paymentMethod = 'cod';
 let sharedLocation = null; // { lat, lng } once the customer taps "share my location"
@@ -252,24 +260,57 @@ async function init(){
   }
   try{
     const rDoc = db.collection('restaurants').doc(restaurantId);
-    const [categoriesSnap, productsSnap, zonesSnap, settingsDoc, branchDoc] = await Promise.all([
+    const [categoriesSnap, productsSnap, zonesSnap, settingsDoc, branchesSnap] = await Promise.all([
       rDoc.collection('categories').orderBy('createdAt','asc').get(),
       rDoc.collection('products').get(),
       rDoc.collection('deliveryZones').get(),
       rDoc.collection('publicSettings').doc('info').get(),
-      branchIdParam ? rDoc.collection('branches').doc(branchIdParam).get() : Promise.resolve(null)
+      rDoc.collection('branches').get()
     ]);
 
     categories = categoriesSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
     products = productsSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
     deliveryZones = zonesSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
     publicSettings = settingsDoc.exists ? settingsDoc.data() : {};
-    branchName = (branchDoc && branchDoc.exists) ? (branchDoc.data().name || '') : '';
+    allBranches = branchesSnap.docs.map(d=> ({ id:d.id, ...d.data() }));
+
+    // A QR code printed for a branch is a physical object that can keep circulating
+    // (on a table tent, a flyer, a saved phone link) long after that branch closes or
+    // goes temporarily inactive from the dashboard. Block ordering here rather than
+    // silently letting orders land on a branch that isn't actually operating.
+    if(branchIdParam){
+      const paramBranch = allBranches.find(b=> b.id === branchIdParam);
+      if(paramBranch && paramBranch.status === 'inactive'){
+        document.getElementById('loadingView').classList.add('hidden');
+        document.getElementById('branchClosedView').classList.remove('hidden');
+        return;
+      }
+      branchName = paramBranch ? (paramBranch.name || '') : '';
+    }
 
     if(products.length === 0){
       document.getElementById('loadingView').classList.add('hidden');
       document.getElementById('errorView').classList.remove('hidden');
       return;
+    }
+
+    // No ?branch= in the link (e.g. a generic "all branches" QR/social link) — every
+    // order placed through such a link used to be saved with branchId: null, which
+    // meant it could never be matched to any specific branch's shift, reports, or
+    // dashboard filters. Instead, ask the customer to pick their branch up front
+    // (skipped automatically if there's only one to choose from).
+    if(!branchIdParam){
+      const activeBranches = allBranches.filter(b=> (b.status||'active') !== 'inactive');
+      if(activeBranches.length === 1){
+        selectedBranchId = activeBranches[0].id;
+        branchName = activeBranches[0].name || '';
+      } else if(activeBranches.length > 1){
+        document.getElementById('loadingView').classList.add('hidden');
+        renderBranchPicker(activeBranches);
+        return; // proceedPastBranchPicker() continues the flow once the customer picks one
+      }
+      // 0 active branches falls through with selectedBranchId staying null — same as
+      // before this change, and still lets the order go through if that's ever hit.
     }
 
     document.getElementById('loadingView').classList.add('hidden');
@@ -284,6 +325,28 @@ async function init(){
     document.getElementById('loadingView').classList.add('hidden');
     document.getElementById('errorView').classList.remove('hidden');
   }
+}
+
+function renderBranchPicker(activeBranches){
+  const view = document.getElementById('branchPickerView');
+  view.innerHTML = `
+    <div class="card">
+      <h1 style="font-size:17px; margin:0 0 4px;">📍 اختر فرعك</h1>
+      <p class="sub" style="color:var(--muted); font-size:13px; margin:0 0 16px;">عشان نبعت طلبك للفرع الصح</p>
+      ${activeBranches.map(b=> `<button class="branch-pick-btn" onclick="proceedPastBranchPicker('${b.id}', '${escapeHtml(b.name||'').replace(/'/g,"\\'")}')">${escapeHtml(b.name||'')}</button>`).join('')}
+    </div>`;
+  view.classList.remove('hidden');
+}
+
+function proceedPastBranchPicker(branchId, name){
+  selectedBranchId = branchId;
+  branchName = name;
+  document.getElementById('branchPickerView').classList.add('hidden');
+  document.getElementById('menuApp').classList.remove('hidden');
+  document.getElementById('pmBranchName').textContent = branchName;
+  renderMenu();
+  populateZoneSelect();
+  renderBankBox();
 }
 
 function renderMenu(){
@@ -526,7 +589,7 @@ async function submitCustomerOrder(){
     const total = subtotal + deliveryFee;
 
     const orderData = {
-      branchId: branchIdParam || null,
+      branchId: selectedBranchId || null,
       orderType: 'delivery',
       customerName: name,
       customerPhone: phone,
