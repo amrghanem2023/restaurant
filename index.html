@@ -2133,6 +2133,25 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 const storage = firebase.storage();
 
+// No service worker/offline persistence in this app (see earlier discussion) — without
+// this, a dropped connection is silent: cached data stays on screen looking normal
+// while writes just hang in the background with zero feedback. A simple always-visible
+// banner, tied to the browser's own online/offline events, is the minimum fix: it at
+// least tells whoever's looking at the dashboard that actions right now won't actually
+// save until the connection is back.
+function initOfflineBanner(){
+  const banner = document.createElement('div');
+  banner.id = 'offlineBanner';
+  banner.textContent = '📡 مفيش اتصال بالإنترنت — أي تعديل دلوقتي مش هيتحفظ لحد ما النت يرجع';
+  banner.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#dc2626; color:#fff; text-align:center; padding:10px 16px; font-size:13px; font-weight:700; z-index:99999; display:none;';
+  document.body.prepend(banner);
+  function update(){ banner.style.display = navigator.onLine ? 'none' : 'block'; }
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
+}
+initOfflineBanner();
+
 let currentUser = null;
 let currentRestaurantId = null;
 let currentLang = 'ar';
