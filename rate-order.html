@@ -59,6 +59,7 @@
 <div id="confirmView" class="card confirm-box hidden">
   <div class="icon" id="confirmIcon">✅</div>
   <p id="confirmText">تم إرسال تقييمك، شكرًا لثقتك بينا! 🙏</p>
+  <a id="googleReviewBtn" href="#" target="_blank" rel="noopener" class="submit-btn hidden" style="display:block; text-decoration:none; margin-top:18px; box-sizing:border-box;">⭐ قيّمنا كمان على جوجل ماب</a>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -91,14 +92,24 @@ const orderId = params.get('o');
 const orderRef = restaurantId && orderId ? db.collection('restaurants').doc(restaurantId).collection('orders').doc(orderId) : null;
 
 let selectedRating = 0;
+let googleMapsUrl = '';
 
 const RATING_LABELS = { 1:'مش عاجبك خالص 😞', 2:'محتاجين نتحسّن 😕', 3:'كويس 🙂', 4:'حلو جدًا 😃', 5:'ممتاز! 🤩' };
 
-function init(){
+async function init(){
   if(!orderRef){
     document.getElementById('loadingView').classList.add('hidden');
     document.getElementById('errorView').classList.remove('hidden');
     return;
+  }
+  // publicSettings/info is publicly readable (same doc customer-order.html reads for
+  // bank-transfer details), so this is a normal read, not a workaround — unlike the
+  // order doc itself, which this page can only write to, never read.
+  try{
+    const settingsDoc = await db.collection('restaurants').doc(restaurantId).collection('publicSettings').doc('info').get();
+    if(settingsDoc.exists) googleMapsUrl = settingsDoc.data().googleMapsUrl || '';
+  }catch(e){
+    console.error('fetch publicSettings error', e); // non-fatal — rating still works without it
   }
   document.getElementById('loadingView').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
@@ -129,6 +140,14 @@ async function submitRating(){
     await orderRef.update(data);
     document.getElementById('app').classList.add('hidden');
     document.getElementById('confirmView').classList.remove('hidden');
+    // Funnel only happy customers toward a public Google review — a mediocre or bad
+    // rating stays internal (that's the whole point of collecting it here first
+    // instead of just linking straight to Google from the WhatsApp message).
+    if(selectedRating >= 4 && googleMapsUrl){
+      const reviewBtn = document.getElementById('googleReviewBtn');
+      reviewBtn.href = googleMapsUrl;
+      reviewBtn.classList.remove('hidden');
+    }
   }catch(e){
     console.error('submitRating error', e);
     btn.disabled = false;
