@@ -1231,6 +1231,11 @@
           <label data-i18n="kitchenWhatsapp">رقم واتساب المطبخ (لإشعارات الطلبات الجديدة)</label>
           <input type="text" id="settingsKitchenWhatsapp" placeholder="01xxxxxxxxx">
         </div>
+        <div class="field">
+          <label data-i18n="googleMapsReviewLink">رابط تقييم جوجل ماب</label>
+          <input type="text" id="settingsGoogleMapsUrl" placeholder="https://g.page/r/....../review">
+          <p style="font-size:11px; color:var(--muted); margin-top:4px;" data-i18n="googleMapsReviewLinkDesc">بعد ما العميل يقيّم طلبك 4 أو 5 نجوم، هيظهرله زرار يودّيه يقيّمك على جوجل ماب كمان. سيبه فاضي لو مش عايز الميزة دي.</p>
+        </div>
         <button class="btn" onclick="savePublicSettings()" data-i18n="saveSettings">💾 حفظ الإعدادات</button>
       </div>
 
@@ -2382,6 +2387,8 @@ const translations = {
     paymentSettingsDesc:"البيانات دي بتظهر للعميل في صفحة الطلب أونلاين وقت اختيار التحويل البنكي، وبتُستخدم لإرسال إشعارات واتساب للمطبخ والدليفري.",
     bankAccountName:"اسم صاحب الحساب البنكي", bankAccountNumber:"رقم الحساب", bankIBAN:"رقم الآيبان (IBAN)",
     kitchenWhatsapp:"رقم واتساب المطبخ (لإشعارات الطلبات الجديدة)", saveSettings:"💾 حفظ الإعدادات",
+    googleMapsReviewLink:"رابط تقييم جوجل ماب",
+    googleMapsReviewLinkDesc:"بعد ما العميل يقيّم طلبك 4 أو 5 نجوم، هيظهرله زرار يودّيه يقيّمك على جوجل ماب كمان. سيبه فاضي لو مش عايز الميزة دي.",
     settingsSaved:"تم حفظ الإعدادات",
     status_pending_payment:"بانتظار تأكيد الدفع",
     newOnlineOrderToast:"🆕 طلب أونلاين جديد وصل!",
@@ -2634,6 +2641,8 @@ const translations = {
     paymentSettingsDesc:"This info is shown to customers on the online order page when they choose bank transfer, and is used to send WhatsApp notifications to the kitchen and drivers.",
     bankAccountName:"Bank Account Holder Name", bankAccountNumber:"Account Number", bankIBAN:"IBAN",
     kitchenWhatsapp:"Kitchen WhatsApp Number (for new order alerts)", saveSettings:"💾 Save Settings",
+    googleMapsReviewLink:"Google Maps Review Link",
+    googleMapsReviewLinkDesc:"After a customer rates their order 4 or 5 stars, they'll see a button to also review you on Google Maps. Leave empty to disable this.",
     settingsSaved:"Settings saved",
     status_pending_payment:"Awaiting Payment Confirmation",
     newOnlineOrderToast:"🆕 New online order received!",
@@ -6775,6 +6784,7 @@ async function loadPublicSettingsForm(){
     document.getElementById('settingsBankAccountNumber').value = data.bankAccountNumber || '';
     document.getElementById('settingsBankIBAN').value = data.bankIBAN || '';
     document.getElementById('settingsKitchenWhatsapp').value = data.kitchenWhatsapp || '';
+    document.getElementById('settingsGoogleMapsUrl').value = data.googleMapsUrl || '';
   }catch(e){
     console.error('loadPublicSettingsForm error', e);
   }
@@ -6785,7 +6795,8 @@ async function savePublicSettings(){
     bankAccountName: document.getElementById('settingsBankAccountName').value.trim(),
     bankAccountNumber: document.getElementById('settingsBankAccountNumber').value.trim(),
     bankIBAN: document.getElementById('settingsBankIBAN').value.trim(),
-    kitchenWhatsapp: document.getElementById('settingsKitchenWhatsapp').value.trim()
+    kitchenWhatsapp: document.getElementById('settingsKitchenWhatsapp').value.trim(),
+    googleMapsUrl: document.getElementById('settingsGoogleMapsUrl').value.trim()
   };
   try{
     await publicSettingsDoc().set(data, { merge:true });
