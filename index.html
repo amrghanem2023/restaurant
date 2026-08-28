@@ -2257,6 +2257,7 @@ const translations = {
     cashHandedToTillYes:"✅ الفلوس اتسلمت للخزينة", cashHandedToTillNo:"🏦 الفلوس لسه مع المندوب، مسلمتش الخزينة",
     confirmCashHandedToTill:"تأكيد استلام الخزينة للفلوس", cashOutstandingWithDrivers:"🛵 كاش لسه مع المناديب",
     cashOutstandingWarning:"فيه كاش لسه مع مناديب التوصيل مسلموش للخزينة — الرصيد الفعلي في الدرج ممكن يكون أقل من المتوقع لحد ما يرجعوه.",
+    sendDriverInfoToCustomer:"مراسلة العميل ببيانات المندوب", actualDeliveryTime:"🛵 زمن التوصيل الفعلي",
     kitchenTodayLogBtn:"📋 سجل اليوم", kitchenTodayLogTitle:"📋 الطلبات اللي خلصت تجهيز النهاردة",
     kitchenNoTodayLog:"لسه مفيش طلبات خلصت تجهيز النهاردة",
     editStaff:"تعديل موظف", staffSaved:"تم حفظ الموظف", staffDeleted:"تم حذف الموظف",
@@ -2511,6 +2512,7 @@ const translations = {
     cashHandedToTillYes:"✅ Cash handed to the till", cashHandedToTillNo:"🏦 Cash still with the driver, not in the till yet",
     confirmCashHandedToTill:"Confirm cash received at till", cashOutstandingWithDrivers:"🛵 Cash still with drivers",
     cashOutstandingWarning:"Some delivery cash hasn't been handed to the till yet — the actual drawer balance may be lower than expected until it's returned.",
+    sendDriverInfoToCustomer:"Message Customer Driver Info", actualDeliveryTime:"🛵 Actual Delivery Time",
     kitchenTodayLogBtn:"📋 Today's Log", kitchenTodayLogTitle:"📋 Orders that finished prep today",
     kitchenNoTodayLog:"No orders have finished prep today yet",
     editStaff:"Edit Staff", staffSaved:"Staff saved", staffDeleted:"Staff deleted",
@@ -4210,7 +4212,10 @@ function renderOrderCard(o){
     // cash collection on COD orders). This is intentional: it's the driver who's
     // physically there to confirm the handoff and the money, not staff sitting at the
     // dashboard. See notifyDriverAndCustomerWhatsapp / driver-track.html.
-    actionsHtml = `<div style="font-size:11px; color:var(--muted); text-align:center; padding:8px 0;">⏳ ${t('waitingDriverConfirm')}</div>`;
+    const messageCustomerBtn = o.customerPhone && o.driverId
+      ? `<button class="btn btn-outline" style="width:100%; font-size:12px; padding:6px; margin-bottom:6px;" onclick="sendDriverInfoToCustomer('${o.id}')">📩 ${t('sendDriverInfoToCustomer')}</button>`
+      : '';
+    actionsHtml = `${messageCustomerBtn}<div style="font-size:11px; color:var(--muted); text-align:center; padding:8px 0;">⏳ ${t('waitingDriverConfirm')}</div>`;
   }
 
   // Delivery-specific info block: driver, platform source, delivery fee/address —
@@ -4253,6 +4258,7 @@ function renderOrderCard(o){
     ${o.paymentMethod === 'bank_transfer' && o.receiptUrl ? `<a href="${o.receiptUrl}" target="_blank" style="font-size:11px; display:block; margin-bottom:4px;">🧾 ${t('viewReceipt')}</a>` : ''}
     ${o.status === 'preparing' && o.estimatedPrepMinutes ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⏱️ ${t('prepMinutes')}: ${o.estimatedPrepMinutes}</div>` : ''}
     ${o.preparingStartedAt && o.readyAt ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${t('actualPrepTime')}: ${formatDurationMinutes(toJsDate(o.preparingStartedAt), toJsDate(o.readyAt))}</div>` : ''}
+    ${isDelivery && o.outForDeliveryAt && o.closedAt && o.status === 'delivered' ? `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">${t('actualDeliveryTime')}: ${formatDurationMinutes(toJsDate(o.outForDeliveryAt), toJsDate(o.closedAt))}</div>` : ''}
     ${renderCashHandoffHtml(o, isDelivery)}
     ${deliveryInfoHtml}
     <div class="order-total">${Number(o.total||0).toFixed(2)}</div>
@@ -4300,16 +4306,21 @@ async function updateOrderStatus(orderId, newStatus){
     }
     // preparingStartedAt/readyAt capture the real moments the order entered the kitchen
     // and left it "جاهز", independent of updatedAt (which gets overwritten on every
-    // later status change). These are what the kitchen countdown timer and the actual
-    // prep-duration display are built on. closedAt marks the moment an order became
-    // delivered/cancelled — used only to decide when it's old enough to drop off the
-    // live orders board into the Archive (see isArchivable/renderOrdersBoard).
+    // later status change). outForDeliveryAt is the same idea for dispatch — without it
+    // there's no way to measure actual delivery time (dispatch → delivered), only the
+    // full order-to-delivered span. closedAt marks the moment an order became
+    // delivered/cancelled — used both for that delivery-time math and to decide when
+    // it's old enough to drop off the live orders board into the Archive (see
+    // isArchivable/renderOrdersBoard).
     const statusPayload = { status:newStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
     if(newStatus === 'preparing'){
       statusPayload.preparingStartedAt = firebase.firestore.FieldValue.serverTimestamp();
     }
     if(newStatus === 'ready'){
       statusPayload.readyAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    if(newStatus === 'out_for_delivery'){
+      statusPayload.outForDeliveryAt = firebase.firestore.FieldValue.serverTimestamp();
     }
     if(newStatus === 'delivered' || newStatus === 'cancelled'){
       statusPayload.closedAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -4386,6 +4397,20 @@ function getDriverTrackUrl(order){
   return `${base}?${qs.toString()}`;
 }
 
+// Manual, repeatable version of the driver info the customer gets — the automatic
+// message in notifyDriverAndCustomerWhatsapp fires once, at the moment a driver is
+// assigned, and doesn't even include the driver's name/phone. This is what staff use
+// afterward (e.g. the customer calls asking "where's my order?") to actually hand them
+// the driver's name and number on demand, any time while it's out for delivery.
+function sendDriverInfoToCustomer(orderId){
+  const order = ordersCache.find(o=> o.id === orderId);
+  if(!order || !order.customerPhone) return;
+  const driver = order.driverId ? driversCache.find(d=> d.id === order.driverId) : null;
+  if(!driver){ showToast(t('noDriverAssigned')); return; }
+  const msg = `طلبك #${order.id.slice(0,6).toUpperCase()} مع المندوب ${driver.name}${driver.phone ? ' - '+driver.phone : ''} وفي الطريق ليك 🛵`;
+  openWhatsappChat(order.customerPhone, msg, 'delivery_notify', order.customerName);
+}
+
 function notifyDriverAndCustomerWhatsapp(order, driver){
   try{
     if(driver && driver.phone){
@@ -4436,6 +4461,7 @@ async function saveAssignedDriver(){
   // statuses (or clearing the assignment) untouched.
   if(driver && order && order.status === 'ready'){
     updateData.status = 'out_for_delivery';
+    updateData.outForDeliveryAt = firebase.firestore.FieldValue.serverTimestamp();
   }
   try{
     await ordersCol().doc(assigningDriverOrderId).update(updateData);
