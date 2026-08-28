@@ -201,6 +201,26 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// This is the highest-stakes page for a dropped connection: without offline detection,
+// a customer whose net drops mid-checkout sees "جاري إرسال الطلب..." hang with no
+// explanation, and if they get impatient and retry (reload + resubmit), a duplicate
+// order can land once connectivity actually returns and the first write finally goes
+// through. The banner covers the general "you're offline" case; submitCustomerOrder
+// below adds an upfront connectivity check plus an in-flight offline warning so the
+// person isn't left guessing what's happening to their order.
+function initOfflineBanner(){
+  const banner = document.createElement('div');
+  banner.id = 'offlineBanner';
+  banner.textContent = '📡 مفيش اتصال بالإنترنت دلوقتي';
+  banner.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#dc2626; color:#fff; text-align:center; padding:10px 16px; font-size:13px; font-weight:700; z-index:99999; display:none;';
+  document.body.prepend(banner);
+  function update(){ banner.style.display = navigator.onLine ? 'none' : 'block'; }
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
+}
+initOfflineBanner();
+
 const params = new URLSearchParams(window.location.search);
 const restaurantId = params.get('menu');
 const branchIdParam = params.get('branch');
@@ -563,6 +583,14 @@ async function submitCustomerOrder(){
     errEl.style.display = 'block';
     return;
   }
+  // Refuse upfront rather than letting the write hang silently — navigator.onLine can
+  // have false positives (says "online" while actually unreachable) but it reliably
+  // catches the common case of the phone visibly showing no signal/no wifi.
+  if(!navigator.onLine){
+    errEl.textContent = '📡 مفيش اتصال بالإنترنت دلوقتي. اتأكد من الشبكة وحاول تاني.';
+    errEl.style.display = 'block';
+    return;
+  }
   let receiptDataUrl = null;
   if(paymentMethod === 'bank_transfer'){
     const fileInput = document.getElementById('receiptFileInput');
@@ -577,6 +605,17 @@ async function submitCustomerOrder(){
   const btn = document.getElementById('submitOrderBtn');
   btn.disabled = true;
   btn.textContent = 'جاري إرسال الطلب...';
+
+  // If the connection drops mid-submit, the Firestore write just queues silently and
+  // the button would be stuck on "جاري الإرسال..." with no explanation — the classic
+  // setup for a customer assuming it failed, reloading, and resubmitting once
+  // connectivity actually returns (a real duplicate-order risk). This listener updates
+  // the button text to explain what's happening instead, but deliberately does NOT
+  // re-enable the button: the original write is still in flight and will complete on
+  // its own once the network is back, so allowing a second submit here would be the
+  // exact duplicate this is trying to prevent.
+  const onGoesOffline = ()=>{ btn.textContent = '📡 الاتصال اتقطع، هيتبعت أول ما النت يرجع...'; };
+  window.addEventListener('offline', onGoesOffline);
 
   try{
     if(paymentMethod === 'bank_transfer'){
@@ -624,6 +663,7 @@ async function submitCustomerOrder(){
     errEl.textContent = 'حصل خطأ أثناء إرسال الطلب، حاول تاني: ' + e.message;
     errEl.style.display = 'block';
   }finally{
+    window.removeEventListener('offline', onGoesOffline);
     btn.disabled = false;
     btn.textContent = 'تأكيد الطلب';
   }
