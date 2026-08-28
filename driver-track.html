@@ -92,6 +92,19 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+function initOfflineBanner(){
+  const banner = document.createElement('div');
+  banner.id = 'offlineBanner';
+  banner.textContent = '📡 مفيش اتصال بالإنترنت — تتبع الموقع مش هيتبعت لحد ما النت يرجع';
+  banner.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#dc2626; color:#fff; text-align:center; padding:10px 16px; font-size:13px; font-weight:700; z-index:99999; display:none;';
+  document.body.prepend(banner);
+  function update(){ banner.style.display = navigator.onLine ? 'none' : 'block'; }
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
+}
+initOfflineBanner();
+
 const params = new URLSearchParams(window.location.search);
 const restaurantId = params.get('r');
 const orderId = params.get('o');
