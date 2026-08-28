@@ -2846,6 +2846,11 @@ function showModule(name){
   if(name === 'customers') renderCustomersTable();
   if(name === 'shifts'){ populateShiftBranchSelect(); renderCurrentShiftStatus(); renderShiftsHistoryTable(); }
   if(name === 'archive'){ populateArchiveBranchFilter(); renderArchiveTable(); }
+  // The pending-order alarm only makes sense (and should only nag audibly) while
+  // someone's actually looking at the Orders board — stop it on every switch away,
+  // start it fresh whenever the board itself opens.
+  stopPendingAlarmLoop();
+  if(name === 'orders') startPendingAlarmLoop();
 }
 
 function onBranchFilterChange(){
@@ -4151,6 +4156,7 @@ function renderOrdersBoard(){
       <div class="order-col-body">${cardsHtml}</div>
     </div>`;
   }).join('');
+  if(pendingAlarmInterval) tickPendingAlarms(); // paint immediately instead of waiting up to 1s for the first tick
 }
 
 function checkOrderStockShortage(o){
@@ -4238,6 +4244,8 @@ function renderOrderCard(o){
       <span class="oid">#${shortId}</span>
       <span class="otype">${typeLabel}</span>
     </div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">🕐 ${orderCreatedTimeStr(o)}</div>
+    ${o.status === 'pending' ? `<div id="pendingTimer-${o.id}" style="font-size:12px; font-weight:700; margin-bottom:6px; padding:4px 8px; border-radius:6px; background:#f4f6f7; color:var(--text); display:inline-block;" data-order-id="${o.id}">--:--</div>` : ''}
     <div class="customer">${escapeHtml(o.customerName || '—')}</div>
     <div class="branch-tag">🏢 ${escapeHtml(branchName)}</div>
     <div class="items-summary">${itemsSummary}</div>
@@ -5020,6 +5028,63 @@ function playKitchenAlarmBeep(){
   }catch(e){
     console.error('playKitchenAlarmBeep error', e);
   }
+}
+
+const PENDING_ALERT_AFTER_MS = 5 * 60 * 1000; // see tickPendingAlarms()
+
+// The registration time shown on every order card (all statuses) — separate from the
+// live pending-order alarm below, this is just a plain "when was this order placed"
+// readout so staff always have it without hunting through WhatsApp logs.
+function orderCreatedTimeStr(o){
+  const d = toJsDate(o.createdAt);
+  if(!d) return '—';
+  return d.toLocaleTimeString(currentLang==='ar'?'ar-EG':'en-US', {hour:'2-digit', minute:'2-digit'});
+}
+
+/* ---------- Pending-order alarm ----------
+   A brand-new order ("جديد" / pending) is money on the table doing nothing until
+   someone taps "بدء التجهيز" to actually send it to the kitchen. This ticks every
+   second while the Orders board is on screen, showing each pending order's live age
+   and — past PENDING_ALERT_AFTER_MS — flipping it red and beeping (reusing the same
+   Web Audio beep as the kitchen overdue alarm) every 60s until it's dispatched, so a
+   new order can't quietly sit unnoticed the way a silent counter easily could. */
+let pendingAlarmInterval = null;
+let pendingAlarmState = {}; // orderId -> { lastBeepMinute }
+
+function startPendingAlarmLoop(){
+  if(pendingAlarmInterval) return;
+  pendingAlarmInterval = setInterval(tickPendingAlarms, 1000);
+}
+function stopPendingAlarmLoop(){
+  if(pendingAlarmInterval){ clearInterval(pendingAlarmInterval); pendingAlarmInterval = null; }
+  pendingAlarmState = {};
+}
+
+function tickPendingAlarms(){
+  const now = Date.now();
+  ordersCache.filter(o=> o.status === 'pending').forEach(o=>{
+    const el = document.getElementById(`pendingTimer-${o.id}`);
+    if(!el) return; // not currently rendered (different filter/scroll position) — skip, no need to alarm on something not visible
+    const start = toJsDate(o.createdAt);
+    if(!start){ el.textContent = '--:--'; return; }
+    const elapsedMs = now - start.getTime();
+    const elapsedSeconds = elapsedMs / 1000;
+    el.textContent = formatMmSs(elapsedSeconds);
+
+    if(elapsedMs >= PENDING_ALERT_AFTER_MS){
+      el.style.background = '#fef2f2';
+      el.style.color = 'var(--danger)';
+      const state = pendingAlarmState[o.id] || (pendingAlarmState[o.id] = { lastBeepMinute: -1 });
+      const minutesElapsed = Math.floor(elapsedSeconds / 60);
+      if(minutesElapsed > 0 && state.lastBeepMinute !== minutesElapsed){
+        state.lastBeepMinute = minutesElapsed;
+        playKitchenAlarmBeep();
+      }
+    } else {
+      el.style.background = '#f4f6f7';
+      el.style.color = 'var(--text)';
+    }
+  });
 }
 
 async function updateOrderPrepMinutes(orderId, minutes){
