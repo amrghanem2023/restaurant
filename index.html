@@ -1876,7 +1876,7 @@
     <h3 data-i18n="openNewShift">فتح وردية جديدة</h3>
     <div class="field">
       <label data-i18n="cashierName">اسم الكاشير</label>
-      <input type="text" id="shiftCashierNameInput" placeholder="اسم الكاشير">
+      <select id="shiftCashierNameInput"></select>
     </div>
     <div class="field">
       <label data-i18n="openingCash">المبلغ الافتتاحي (النقدية في الدرج)</label>
@@ -2454,6 +2454,7 @@ const translations = {
     currentShiftStatus:"حالة الوردية الحالية", branchForShift:"الفرع",
     shiftHistory:"سجل الورديات", noShiftsYet:"لا توجد ورديات مسجّلة بعد",
     cashierName:"اسم الكاشير", shiftOpenedAt:"وقت الفتح", shiftClosedAt:"وقت الإغلاق",
+    noCashierForBranch:"لا يوجد كاشير مسجّل لهذا الفرع — أضف موظف بدور كاشير أولاً",
     colTotalSales:"إجمالي المبيعات", cashDifference:"فرق الكاش",
     viewShiftTransactions:"عرض المعاملات", colTime:"الوقت", colOrderNum:"رقم الطلب",
     colOrderTotal:"الإجمالي", noShiftTransactions:"مفيش معاملات مسجّلة في الفترة دي",
@@ -2709,6 +2710,7 @@ const translations = {
     currentShiftStatus:"Current Shift Status", branchForShift:"Branch",
     shiftHistory:"Shift History", noShiftsYet:"No shifts recorded yet",
     cashierName:"Cashier Name", shiftOpenedAt:"Opened At", shiftClosedAt:"Closed At",
+    noCashierForBranch:"No cashier registered for this branch — add a staff member with the cashier role first",
     colTotalSales:"Total Sales", cashDifference:"Cash Difference",
     viewShiftTransactions:"View Transactions", colTime:"Time", colOrderNum:"Order #",
     colOrderTotal:"Total", noShiftTransactions:"No transactions recorded in this period",
@@ -5666,7 +5668,14 @@ function renderCurrentShiftStatus(){
 }
 
 function openOpenShiftModal(){
-  document.getElementById('shiftCashierNameInput').value = '';
+  const branchId = document.getElementById('shiftBranchSelect').value;
+  const sel = document.getElementById('shiftCashierNameInput');
+  const eligibleCashiers = staffCache.filter(s=> s.role === 'cashier' && s.active !== false && s.branchId === branchId);
+  if(eligibleCashiers.length === 0){
+    sel.innerHTML = `<option value="">${t('noCashierForBranch')}</option>`;
+  } else {
+    sel.innerHTML = eligibleCashiers.map(s=> `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  }
   document.getElementById('shiftOpeningCashInput').value = '';
   document.getElementById('openShiftModal').classList.add('active');
 }
@@ -5676,17 +5685,20 @@ function closeOpenShiftModal(){
 
 async function confirmOpenShift(){
   const branchId = document.getElementById('shiftBranchSelect').value;
-  const cashierName = document.getElementById('shiftCashierNameInput').value.trim();
+  const cashierSel = document.getElementById('shiftCashierNameInput');
+  const cashierId = cashierSel.value;
+  const cashierName = cashierId ? (cashierSel.options[cashierSel.selectedIndex].textContent || '').trim() : '';
   const openingCash = Math.max(0, parseFloat(document.getElementById('shiftOpeningCashInput').value) || 0);
 
   if(!branchId){ showToast(t('noBranchFirst')); return; }
+  if(!cashierId){ showToast(t('noCashierForBranch')); return; }
   if(findOpenShiftForBranch(branchId)){ showToast(t('shiftAlreadyOpen')); return; }
 
   const btn = document.getElementById('confirmOpenShiftBtn');
   btn.disabled = true;
   try{
     await shiftsCol().add({
-      branchId, cashierName, openingCash,
+      branchId, cashierId, cashierName, openingCash,
       status: 'open',
       openedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
