@@ -234,6 +234,15 @@
 
   /* ---------- Inventory & Costs module ---------- */
   .low-stock-banner{background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:14px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px;}
+
+  /* Help / User Guide & Privacy module */
+  .privacy-banner{background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:18px 20px; margin-bottom:6px; display:flex; align-items:flex-start; gap:14px;}
+  .help-section{background:var(--card,#fff); border:1px solid var(--border); border-radius:10px; padding:4px 16px; margin-bottom:10px;}
+  .help-section summary{cursor:pointer; padding:12px 0; font-weight:600; font-size:14px; list-style:none;}
+  .help-section summary::-webkit-details-marker{display:none;}
+  .help-section summary::before{content:"◀"; display:inline-block; margin-inline-end:10px; font-size:11px; color:var(--muted); transition:transform 0.15s;}
+  .help-section[open] summary::before{transform:rotate(-90deg);}
+  .help-section p{font-size:13.5px; line-height:1.9; color:var(--text); margin:0 0 14px; padding-inline-start:20px;}
   .low-stock-banner .lsb-icon{font-size:22px;}
   .low-stock-banner .lsb-text{flex:1; font-size:13px; color:#991b1b;}
   .low-stock-banner button{background:var(--danger); color:#fff; border:none; padding:8px 16px; border-radius:8px; font-size:12px; cursor:pointer; white-space:nowrap;}
@@ -379,6 +388,9 @@
     <div class="nav-item" data-module="settings" onclick="showModule('settings')">
       <span class="nav-icon">⚙️</span><span data-i18n="nav_settings">الإعدادات والبيانات</span>
     </div>
+    <div class="nav-item" data-module="helpGuide" onclick="showModule('helpGuide')">
+      <span class="nav-icon">📘</span><span data-i18n="nav_helpGuide">دليل الاستخدام والخصوصية</span>
+    </div>
     <div class="sidebar-footer">
       <button onclick="openKitchenPinPrompt()" style="background:#0f766e; margin-bottom:8px;" data-i18n="kitchenModeBtn">🍳 وضع المطبخ</button>
       <button onclick="doLogout()" data-i18n="logout">تسجيل الخروج</button>
@@ -422,8 +434,11 @@
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head"><h3 data-i18n="recentActivity">آخر النشاطات</h3></div>
-        <div id="activityLogList" style="display:none; flex-direction:column; gap:10px;"></div>
+        <div class="panel-head">
+          <h3 data-i18n="recentActivity">آخر النشاطات</h3>
+          <button class="btn btn-outline" id="activityLogToggleBtn" style="font-size:12px; padding:6px 10px;" onclick="toggleActivityLogVisibility()"></button>
+        </div>
+        <div id="activityLogList" style="display:none; flex-direction:column; gap:10px; max-height:480px; overflow-y:auto;"></div>
         <div class="empty-state" id="activityLogEmpty">
           <div class="icon">📭</div>
           <p data-i18n="noActivityYet">لا يوجد نشاط بعد — ابدأ بإضافة فرع أو منتج</p>
@@ -1422,6 +1437,81 @@
         <button class="btn" style="background:var(--danger);" onclick="clearAllData()" data-i18n="clearAllData">🗑️ مسح كافة البيانات</button>
       </div>
     </div>
+
+    <!-- Help / User Guide & Privacy Module: a static reference page, not tied to any
+         Firestore collection — just explains how to use each part of the app and states
+         the data-confidentiality policy plainly for the restaurant owner and staff. -->
+    <div id="module-helpGuide" class="module-content" style="display:none;">
+      <div class="privacy-banner">
+        <div style="font-size:28px;">🔒</div>
+        <div>
+          <h3 style="margin:0 0 8px;" data-i18n="privacyTitle">كل بياناتك سرية بالكامل</h3>
+          <p style="margin:0; font-size:13.5px; line-height:1.8;" data-i18n="privacyBody">
+            كل البيانات اللي بتدخلها في التطبيق — الطلبات، بيانات وأرقام العملاء، المخزون والموردين، التكاليف والأرباح، بيانات الموظفين والورديات، والتقارير المالية — مخزّنة في قاعدة بيانات خاصة بمطعمك فقط (Firebase / Google Cloud)، ومحمية بقواعد أمان تمنع أي جهة أو تطبيق تاني يوصل ليها. البيانات دي ملكك بالكامل، مبتتباعش ولا بتتشارك مع أي طرف ثالث، ومفيش أي مستخدم برّه فريق عملك يقدر يشوفها. الوصول ليها مقصور على المستخدمين المصرح لهم جوه حسابك بس، وكل واحد بيشوف بس اللي صلاحيته تسمح له بيه.
+          </p>
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--muted); margin:0 0 20px;" data-i18n="privacyTip">
+        نصيحة: خد نسخة احتياطية بشكل دوري من صفحة "الإعدادات والبيانات"، وماتشاركش أرقام الدخول أو PIN الموظفين مع أي حد برّه فريق العمل.
+      </p>
+
+      <h3 style="margin:0 0 14px;" data-i18n="guideTitle">دليل استخدام التطبيق</h3>
+
+      <details class="help-section" open>
+        <summary data-i18n="guideStartTitle">🚀 البداية</summary>
+        <p data-i18n="guideStartBody">سجّل الدخول بحساب المطعم، وابدأ بإضافة فروعك من صفحة "الفروع"، بعدين أضف تصنيفات ومنتجات من "المنتجات والقوائم". لو عندك أكتر من موظف بأدوار مختلفة (كاشير، مطبخ، مدير)، أضفهم من "الموظفين والصلاحيات" قبل ما تبدأ تشغيل الوردية الأولى.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideDashboardTitle">📊 لوحة التحكم</summary>
+        <p data-i18n="guideDashboardBody">تعرض ملخص سريع لأداء اليوم: عدد الطلبات، الإيرادات، نواقص المخزون، وآخر النشاطات على النظام (طلبات جديدة، تغييرات حالة، إضافات...). تقدر تخفي قائمة "آخر النشاطات" بزرار الإخفاء لو مش محتاجها ظاهرة طول الوقت.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideMenuTitle">🍽️ المنتجات والقوائم + حاسبة التكلفة الذكية</summary>
+        <p data-i18n="guideMenuBody">أضف تصنيفاتك ومنتجاتك، واربط كل منتج بمكوناته (BOM) عشان تكلفته تتحسب تلقائيًا. حدد وقت التحضير لكل منتج، واملأ إعدادات "تكلفة تشغيل المطبخ" (غاز، كهرباء، أجور...) من صفحة الإعدادات — عشان تكلفة الطهي تتحسب تلقائيًا لكل المنتجات. صفحة "حاسبة التكلفة الذكية" بتوريك كل منتجاتك مع هامش الربح لحظيًا، وبتنبهك لو منتج بيخسر أو تكلفته ارتفعت.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideOrdersTitle">🧾 الطلبات</summary>
+        <p data-i18n="guideOrdersBody">أنشئ طلب جديد وحدد الفرع ونوعه (صالة/تيك أواي/دليفري) والمنتجات. الطلب بيمر بمراحل: قيد الانتظار ← قيد التحضير ← جاهز ← (خرج للتوصيل) ← تم التسليم. تقدر تعدّل الطلب أو تلغيه قبل ما يدخل المطبخ، وتلغيه حتى بعد كده مع تأكيد وإرجاع المخزون تلقائيًا لو كان اتخصم. طلبات العملاء الأونلاين (من صفحة الطلب العامة) بتظهر تلقائيًا هنا.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideKitchenTitle">👨‍🍳 وضع المطبخ</summary>
+        <p data-i18n="guideKitchenBody">شاشة مبسطة للمطبخ تعرض بس الطلبات اللي محتاجة تحضير، مع مؤقت لكل طلب. بتفتح بـ PIN خاص بالموظف من زرار "وضع المطبخ" في القائمة الجانبية، من غير ما تحتاج تسجل دخول كامل.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideInventoryTitle">📦 المخزون والتكاليف</summary>
+        <p data-i18n="guideInventoryBody">سجّل كل مكوناتك وكمياتها الحالية وحدها الأدنى للتنبيه، والموردين المرتبطين بيها. أوامر الشراء بتتابع اللي طلبته من كل مورد ولسه ماوصلش، وبتحدّث المخزون تلقائيًا لحظة الاستلام. لو مكوّن وصل للحد الأدنى، هيظهرلك تنبيه في لوحة التحكم.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideShiftsTitle">💰 الورديات</summary>
+        <p data-i18n="guideShiftsBody">افتح وردية لكل فرع باختيار الكاشير من قائمة الموظفين المسجّلين بدور "كاشير"، وحدد رصيد الدرج الافتتاحي. عند القفل، النظام بيقارن المبلغ المتوقع بالفعلي، وبيستثني أي كاش لسه مع مندوب دليفري ماوصلش للخزينة لسه — لحد ما تأكد استلامه.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideStaffTitle">👥 الموظفين والصلاحيات</summary>
+        <p data-i18n="guideStaffBody">أضف كل موظف بدوره (كاشير، مطبخ، مدير...) وصلاحياته. أدوار الكاشير هي اللي بتظهر في قائمة اختيار الكاشير عند فتح وردية جديدة.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideReportsTitle">📈 التقارير والإحصائيات</summary>
+        <p data-i18n="guideReportsBody">تقرير مالي شامل يومي/أسبوعي/شهري/سنوي (أو فترة مخصصة): الإيرادات، تكلفة البضاعة المباعة، مجمل الربح، المصاريف حسب الفئة (كهرباء، مرتبات، ضرائب، صيانة...)، وصافي الربح النهائي. تقدر تصدّر أو تطبع أي جدول منها.</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideOtherTitle">🏷️ الكوبونات، الدليفري، العملاء، وسجل المراسلات</summary>
+        <p data-i18n="guideOtherBody">أنشئ كوبونات خصم، وتابع مندوبين ومناطق التوصيل، وسجّل بيانات عملائك وتاريخ طلباتهم، وراجع سجل رسائل الواتساب المرسلة تلقائيًا (تأكيد طلبات، تنبيهات مطبخ...).</p>
+      </details>
+
+      <details class="help-section">
+        <summary data-i18n="guideSettingsTitle">⚙️ الإعدادات والبيانات</summary>
+        <p data-i18n="guideSettingsBody">تحكم في بيانات المطعم العامة، وسائل الدفع، رموز QR للقائمة وصفحة الطلب، إعدادات تكلفة تشغيل المطبخ، والنسخ الاحتياطي (تنزيل نسخة من كل بياناتك أو استعادتها). خانة "منطقة الخطر" بتمسح كل البيانات نهائيًا — استخدمها بحذر شديد وبعد أخذ نسخة احتياطية.</p>
+      </details>
+    </div>
   </main>
 </div>
 
@@ -2384,6 +2474,7 @@ const translations = {
     allBranches:"كل الفروع", statBranches:"عدد الفروع", statOrdersToday:"طلبات اليوم",
     statPending:"— بانتظار التفعيل", statRevenueToday:"إيرادات اليوم", statStaff:"عدد الموظفين",
     recentActivity:"آخر النشاطات", noActivityYet:"لا يوجد نشاط بعد — ابدأ بإضافة فرع أو منتج",
+    hideActivity:"إخفاء", showActivity:"إظهار",
     branchList:"قائمة الفروع", addBranch:"إضافة فرع", noBranchesYet:"لم تُضف أي فروع بعد",
     colName:"الاسم", colCity:"المدينة", colPhone:"الهاتف", colStatus:"الحالة", colActions:"إجراءات",
     branchName:"اسم الفرع", active:"نشط", inactive:"غير نشط", cancel:"إلغاء", save:"حفظ",
@@ -2536,6 +2627,33 @@ const translations = {
     nothingToExport:"لا توجد بيانات لتصديرها", orderItemsSummary:"الأصناف",
     exportExcel:"تصدير Excel", print:"طباعة",
     nav_settings:"الإعدادات والبيانات",
+    nav_helpGuide:"دليل الاستخدام والخصوصية",
+    privacyTitle:"كل بياناتك سرية بالكامل",
+    privacyBody:"كل البيانات اللي بتدخلها في التطبيق — الطلبات، بيانات وأرقام العملاء، المخزون والموردين، التكاليف والأرباح، بيانات الموظفين والورديات، والتقارير المالية — مخزّنة في قاعدة بيانات خاصة بمطعمك فقط (Firebase / Google Cloud)، ومحمية بقواعد أمان تمنع أي جهة أو تطبيق تاني يوصل ليها. البيانات دي ملكك بالكامل، مبتتباعش ولا بتتشارك مع أي طرف ثالث، ومفيش أي مستخدم برّه فريق عملك يقدر يشوفها. الوصول ليها مقصور على المستخدمين المصرح لهم جوه حسابك بس، وكل واحد بيشوف بس اللي صلاحيته تسمح له بيه.",
+    privacyTip:"نصيحة: خد نسخة احتياطية بشكل دوري من صفحة \"الإعدادات والبيانات\"، وماتشاركش أرقام الدخول أو PIN الموظفين مع أي حد برّه فريق العمل.",
+    guideTitle:"دليل استخدام التطبيق",
+    guideStartTitle:"🚀 البداية",
+    guideStartBody:"سجّل الدخول بحساب المطعم، وابدأ بإضافة فروعك من صفحة \"الفروع\"، بعدين أضف تصنيفات ومنتجات من \"المنتجات والقوائم\". لو عندك أكتر من موظف بأدوار مختلفة (كاشير، مطبخ، مدير)، أضفهم من \"الموظفين والصلاحيات\" قبل ما تبدأ تشغيل الوردية الأولى.",
+    guideDashboardTitle:"📊 لوحة التحكم",
+    guideDashboardBody:"تعرض ملخص سريع لأداء اليوم: عدد الطلبات، الإيرادات، نواقص المخزون، وآخر النشاطات على النظام (طلبات جديدة، تغييرات حالة، إضافات...). تقدر تخفي قائمة \"آخر النشاطات\" بزرار الإخفاء لو مش محتاجها ظاهرة طول الوقت.",
+    guideMenuTitle:"🍽️ المنتجات والقوائم + حاسبة التكلفة الذكية",
+    guideMenuBody:"أضف تصنيفاتك ومنتجاتك، واربط كل منتج بمكوناته (BOM) عشان تكلفته تتحسب تلقائيًا. حدد وقت التحضير لكل منتج، واملأ إعدادات \"تكلفة تشغيل المطبخ\" (غاز، كهرباء، أجور...) من صفحة الإعدادات — عشان تكلفة الطهي تتحسب تلقائيًا لكل المنتجات. صفحة \"حاسبة التكلفة الذكية\" بتوريك كل منتجاتك مع هامش الربح لحظيًا، وبتنبهك لو منتج بيخسر أو تكلفته ارتفعت.",
+    guideOrdersTitle:"🧾 الطلبات",
+    guideOrdersBody:"أنشئ طلب جديد وحدد الفرع ونوعه (صالة/تيك أواي/دليفري) والمنتجات. الطلب بيمر بمراحل: قيد الانتظار ← قيد التحضير ← جاهز ← (خرج للتوصيل) ← تم التسليم. تقدر تعدّل الطلب أو تلغيه قبل ما يدخل المطبخ، وتلغيه حتى بعد كده مع تأكيد وإرجاع المخزون تلقائيًا لو كان اتخصم. طلبات العملاء الأونلاين (من صفحة الطلب العامة) بتظهر تلقائيًا هنا.",
+    guideKitchenTitle:"👨‍🍳 وضع المطبخ",
+    guideKitchenBody:"شاشة مبسطة للمطبخ تعرض بس الطلبات اللي محتاجة تحضير، مع مؤقت لكل طلب. بتفتح بـ PIN خاص بالموظف من زرار \"وضع المطبخ\" في القائمة الجانبية، من غير ما تحتاج تسجل دخول كامل.",
+    guideInventoryTitle:"📦 المخزون والتكاليف",
+    guideInventoryBody:"سجّل كل مكوناتك وكمياتها الحالية وحدها الأدنى للتنبيه، والموردين المرتبطين بيها. أوامر الشراء بتتابع اللي طلبته من كل مورد ولسه ماوصلش، وبتحدّث المخزون تلقائيًا لحظة الاستلام. لو مكوّن وصل للحد الأدنى، هيظهرلك تنبيه في لوحة التحكم.",
+    guideShiftsTitle:"💰 الورديات",
+    guideShiftsBody:"افتح وردية لكل فرع باختيار الكاشير من قائمة الموظفين المسجّلين بدور \"كاشير\"، وحدد رصيد الدرج الافتتاحي. عند القفل، النظام بيقارن المبلغ المتوقع بالفعلي، وبيستثني أي كاش لسه مع مندوب دليفري ماوصلش للخزينة لسه — لحد ما تأكد استلامه.",
+    guideStaffTitle:"👥 الموظفين والصلاحيات",
+    guideStaffBody:"أضف كل موظف بدوره (كاشير، مطبخ، مدير...) وصلاحياته. أدوار الكاشير هي اللي بتظهر في قائمة اختيار الكاشير عند فتح وردية جديدة.",
+    guideReportsTitle:"📈 التقارير والإحصائيات",
+    guideReportsBody:"تقرير مالي شامل يومي/أسبوعي/شهري/سنوي (أو فترة مخصصة): الإيرادات، تكلفة البضاعة المباعة، مجمل الربح، المصاريف حسب الفئة (كهرباء، مرتبات، ضرائب، صيانة...)، وصافي الربح النهائي. تقدر تصدّر أو تطبع أي جدول منها.",
+    guideOtherTitle:"🏷️ الكوبونات، الدليفري، العملاء، وسجل المراسلات",
+    guideOtherBody:"أنشئ كوبونات خصم، وتابع مندوبين ومناطق التوصيل، وسجّل بيانات عملائك وتاريخ طلباتهم، وراجع سجل رسائل الواتساب المرسلة تلقائيًا (تأكيد طلبات، تنبيهات مطبخ...).",
+    guideSettingsTitle:"⚙️ الإعدادات والبيانات",
+    guideSettingsBody:"تحكم في بيانات المطعم العامة، وسائل الدفع، رموز QR للقائمة وصفحة الطلب، إعدادات تكلفة تشغيل المطبخ، والنسخ الاحتياطي (تنزيل نسخة من كل بياناتك أو استعادتها). خانة \"منطقة الخطر\" بتمسح كل البيانات نهائيًا — استخدمها بحذر شديد وبعد أخذ نسخة احتياطية.",
     settingsBackupTitle:"نسخة احتياطية", settingsBackupDesc:"تنزيل نسخة كاملة من كل بيانات المطعم (الفروع، المنتجات، الطلبات، المخزون، الموردين، المصروفات...) كملف JSON واحد على جهازك.",
     downloadBackup:"⬇️ تنزيل نسخة احتياطية",
     settingsRestoreTitle:"استعادة البيانات", settingsRestoreDesc:"استعادة البيانات من ملف نسخة احتياطية سابق. تحذير: هذا سيستبدل كل البيانات الحالية بالكامل بمحتوى الملف.",
@@ -2667,6 +2785,7 @@ const translations = {
     allBranches:"All Branches", statBranches:"Branches", statOrdersToday:"Orders Today",
     statPending:"— pending activation", statRevenueToday:"Revenue Today", statStaff:"Staff Members",
     recentActivity:"Recent Activity", noActivityYet:"No activity yet — start by adding a branch or product",
+    hideActivity:"Hide", showActivity:"Show",
     branchList:"Branches List", addBranch:"+ Add Branch", noBranchesYet:"No branches added yet",
     colName:"Name", colCity:"City", colPhone:"Phone", colStatus:"Status", colActions:"Actions",
     branchName:"Branch Name", active:"Active", inactive:"Inactive", cancel:"Cancel", save:"Save",
@@ -2819,6 +2938,33 @@ const translations = {
     nothingToExport:"No data to export", orderItemsSummary:"Items",
     exportExcel:"Export Excel", print:"Print",
     nav_settings:"Settings & Data",
+    nav_helpGuide:"User Guide & Privacy",
+    privacyTitle:"Your Data Is Fully Confidential",
+    privacyBody:"Everything you enter into this app — orders, customer info and phone numbers, inventory and suppliers, costs and profits, staff and shift data, and financial reports — is stored in a database dedicated to your restaurant only (Firebase / Google Cloud), protected by security rules that prevent any outside party or app from accessing it. This data belongs entirely to you; it is never sold or shared with any third party, and no one outside your own team can view it. Access is limited to authorized users within your account, and each person only sees what their assigned permissions allow.",
+    privacyTip:"Tip: take a backup regularly from the \"Settings & Data\" page, and never share login credentials or staff PINs with anyone outside your team.",
+    guideTitle:"App User Guide",
+    guideStartTitle:"🚀 Getting Started",
+    guideStartBody:"Log in with your restaurant account, then start by adding your branches from the \"Branches\" page, followed by categories and products under \"Products & Menu\". If you have staff with different roles (cashier, kitchen, manager), add them from \"Staff & Permissions\" before running your first shift.",
+    guideDashboardTitle:"📊 Dashboard",
+    guideDashboardBody:"Shows a quick summary of today's performance: order count, revenue, low-stock warnings, and the latest activity on the system (new orders, status changes, additions...). You can hide the \"Recent Activity\" list with the hide button if you don't need it visible all the time.",
+    guideMenuTitle:"🍽️ Products & Menu + Smart Cost Calculator",
+    guideMenuBody:"Add your categories and products, and link each product to its ingredients (BOM) so its cost is calculated automatically. Set each product's prep time, and fill in the \"Kitchen Operating Cost\" settings (gas, electricity, wages...) from the Settings page — so cooking cost is calculated automatically for every product. The \"Smart Cost Calculator\" page shows every product's live profit margin and flags any product that's losing money or whose cost has risen.",
+    guideOrdersTitle:"🧾 Orders",
+    guideOrdersBody:"Create a new order, choosing the branch, type (dine-in/takeaway/delivery), and products. An order moves through stages: pending → preparing → ready → (out for delivery) → delivered. You can edit or cancel an order before it enters the kitchen, and cancel it even afterward with a confirmation prompt that automatically restores any stock already deducted. Online customer orders (from the public order page) appear here automatically.",
+    guideKitchenTitle:"👨‍🍳 Kitchen Mode",
+    guideKitchenBody:"A simplified kitchen screen showing only orders that need preparing, with a timer for each. Opens with a staff PIN via the \"Kitchen Mode\" button in the sidebar, without needing a full login.",
+    guideInventoryTitle:"📦 Inventory & Costs",
+    guideInventoryBody:"Record all your ingredients, their current quantities, and minimum stock thresholds for alerts, along with their suppliers. Purchase orders track what you've ordered from each supplier that hasn't arrived yet, and update stock automatically on receipt. If an ingredient hits its minimum, you'll see an alert on the dashboard.",
+    guideShiftsTitle:"💰 Shifts",
+    guideShiftsBody:"Open a shift for each branch by selecting a cashier from staff registered with the \"cashier\" role, and setting the opening cash balance. On close, the system compares the expected amount to the actual, and excludes any cash still held by a delivery driver who hasn't handed it in yet — until you confirm it's been received.",
+    guideStaffTitle:"👥 Staff & Permissions",
+    guideStaffBody:"Add each staff member with their role (cashier, kitchen, manager...) and permissions. Staff with the cashier role are the ones who appear in the cashier selection list when opening a new shift.",
+    guideReportsTitle:"📈 Reports & Analytics",
+    guideReportsBody:"A comprehensive daily/weekly/monthly/yearly (or custom range) financial report: revenue, cost of goods sold, gross profit, expenses by category (electricity, salaries, taxes, maintenance...), and final net profit. You can export or print any of these tables.",
+    guideOtherTitle:"🏷️ Coupons, Delivery, Customers & Message Log",
+    guideOtherBody:"Create discount coupons, track delivery drivers and zones, keep records of your customers and their order history, and review the log of automatically-sent WhatsApp messages (order confirmations, kitchen alerts...).",
+    guideSettingsTitle:"⚙️ Settings & Data",
+    guideSettingsBody:"Manage your restaurant's public info, payment methods, QR codes for the menu and order page, kitchen operating cost settings, and backups (download or restore all your data). The \"Danger Zone\" permanently deletes all data — use it with extreme caution and only after taking a backup.",
     settingsBackupTitle:"Backup", settingsBackupDesc:"Download a complete backup of all restaurant data (branches, products, orders, inventory, suppliers, expenses...) as a single JSON file to your device.",
     downloadBackup:"⬇️ Download Backup",
     settingsRestoreTitle:"Restore Data", settingsRestoreDesc:"Restore data from a previous backup file. Warning: this will completely replace all current data with the file's contents.",
@@ -4200,10 +4346,13 @@ function startOrdersListener(){
     // Detect newly-arrived online orders (placed by customers via customer-order.html)
     // to surface an immediate toast + activity log entry, since this is the one place
     // staff need to notice fast — everything else in the app is staff-initiated already.
+    // Covers both payment flows: bank-transfer orders arrive at 'pending_payment'
+    // (awaiting confirmation), while COD orders skip straight to 'pending' — both are
+    // "new order" events students need to see, so both are logged here.
     snap.docChanges().forEach(change=>{
       if(change.type === 'added'){
         const o = { id:change.doc.id, ...change.doc.data() };
-        if(o.source === 'customer_online' && o.status === 'pending_payment' && !ordersCache.find(x=> x.id === o.id)){
+        if(o.source === 'customer_online' && (o.status === 'pending_payment' || o.status === 'pending') && !ordersCache.find(x=> x.id === o.id)){
           showToast(t('newOnlineOrderToast'));
           logActivity('🆕', `طلب أونلاين جديد #${o.id.slice(0,6).toUpperCase()} بقيمة ${Number(o.total||0).toFixed(2)} جنيه`, `New online order #${o.id.slice(0,6).toUpperCase()} — ${Number(o.total||0).toFixed(2)} EGP`);
         }
@@ -4597,6 +4746,22 @@ async function updateOrderStatus(orderId, newStatus){
       statusPayload.stockDeducted = false;
     }
     await ordersCol().doc(orderId).update(statusPayload);
+
+    // Every status change gets its own activity-log entry (previously only order
+    // creation/edits were logged) — this is what lets "آخر النشاطات" actually reflect an
+    // order's full journey (تحضير → جاهز → توصيل → تسليم/إلغاء), not just its creation.
+    if(order){
+      const shortId = orderId.slice(0,6).toUpperCase();
+      const statusLogMeta = {
+        preparing: { icon:'👨‍🍳', ar:`بدأ تحضير الطلب #${shortId}`, en:`Order #${shortId} started preparing` },
+        ready: { icon:'✅', ar:`الطلب #${shortId} أصبح جاهزًا`, en:`Order #${shortId} is ready` },
+        out_for_delivery: { icon:'🛵', ar:`الطلب #${shortId} خرج للتوصيل`, en:`Order #${shortId} went out for delivery` },
+        delivered: { icon:'📦', ar:`تم تسليم الطلب #${shortId}`, en:`Order #${shortId} delivered` },
+        cancelled: { icon:'❌', ar:`تم إلغاء الطلب #${shortId}`, en:`Order #${shortId} cancelled` }
+      };
+      const meta = statusLogMeta[newStatus];
+      if(meta) await logActivity(meta.icon, meta.ar, meta.en);
+    }
 
     // Whenever an order moves into "preparing" (whether it came from a staff-created
     // pending order or an online order whose bank transfer was just confirmed), ping the
@@ -7320,7 +7485,7 @@ async function logActivity(icon, textAr, textEn){
 
 async function loadActivityLog(){
   try{
-    const snap = await activityLogCol().orderBy('createdAt','desc').limit(10).get();
+    const snap = await activityLogCol().orderBy('createdAt','desc').limit(30).get();
     activityLogCache = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
     renderActivityLog();
   }catch(e){
@@ -7331,7 +7496,17 @@ async function loadActivityLog(){
 function renderActivityLog(){
   const list = document.getElementById('activityLogList');
   const empty = document.getElementById('activityLogEmpty');
+  const btn = document.getElementById('activityLogToggleBtn');
   if(!list || !empty) return;
+
+  const hidden = getRememberedOrderPref('activityLogHidden') === 'true';
+  if(btn) btn.textContent = hidden ? ('👁️ ' + t('showActivity')) : ('🙈 ' + t('hideActivity'));
+
+  if(hidden){
+    list.style.display = 'none';
+    empty.style.display = 'none';
+    return;
+  }
 
   if(activityLogCache.length === 0){
     list.style.display = 'none';
@@ -7350,6 +7525,16 @@ function renderActivityLog(){
       <div style="font-size:11px; color:var(--muted);">${timeLabel}</div>
     </div>`;
   }).join('');
+}
+
+// Lets staff collapse the "Recent Activity" panel out of the way (e.g. once they've
+// caught up on it) without losing the data — toggling just changes what's rendered, the
+// activity log itself keeps recording underneath. Preference persists across sessions,
+// same mechanism as the remembered order-modal branch/type defaults.
+function toggleActivityLogVisibility(){
+  const hidden = getRememberedOrderPref('activityLogHidden') === 'true';
+  setRememberedOrderPref('activityLogHidden', hidden ? 'false' : 'true');
+  renderActivityLog();
 }
 
 /* ---------- Kitchen Cost Settings (Firestore: restaurants/{rid}/settings/costSettings) ----------
