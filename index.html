@@ -956,7 +956,7 @@
                 <th data-i18n="colCategory">التصنيف</th>
                 <th data-i18n="colPrice">السعر</th>
                 <th data-i18n="ingredientsCost">تكلفة المكونات</th>
-                <th data-i18n="laborCost">العمالة</th>
+                <th data-i18n="cookingCostShort">تكلفة الطهي</th>
                 <th data-i18n="otherCosts">تكاليف أخرى</th>
                 <th data-i18n="totalCost">إجمالي التكلفة</th>
                 <th data-i18n="expectedProfit">الربح</th>
@@ -1317,6 +1317,42 @@
 
       <div class="panel" style="margin-top:20px;">
         <div class="panel-head">
+          <h3 data-i18n="kcsTitle">تكلفة تشغيل المطبخ (تكلفة الطهي)</h3>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="kcsDesc">اكتب هنا كل التكاليف الشهرية غير المباشرة لتشغيل المطبخ (غاز، كهرباء، أجور، تكاليف أخرى) وعدد ساعات تشغيل المطبخ في الشهر — النظام يحسب منها تكلفة الساعة، وبعدين تكلفة طهي أي منتج = وقت تحضيره × تكلفة الساعة دي، بتتحدث تلقائيًا في كل المنتجات.</p>
+        <div class="field-row">
+          <div class="field">
+            <label data-i18n="kcsGasLabel">تكلفة الغاز الشهرية</label>
+            <input type="number" id="kcsGasInput" min="0" step="0.01" placeholder="0" oninput="updateKitchenHourlyRatePreview()">
+          </div>
+          <div class="field">
+            <label data-i18n="kcsElectricityLabel">تكلفة الكهرباء الشهرية</label>
+            <input type="number" id="kcsElectricityInput" min="0" step="0.01" placeholder="0" oninput="updateKitchenHourlyRatePreview()">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label data-i18n="kcsLaborLabel">إجمالي أجور فريق المطبخ الشهرية</label>
+            <input type="number" id="kcsLaborInput" min="0" step="0.01" placeholder="0" oninput="updateKitchenHourlyRatePreview()">
+          </div>
+          <div class="field">
+            <label data-i18n="kcsOtherLabel">تكاليف تشغيل أخرى شهرية (صيانة، نظافة...)</label>
+            <input type="number" id="kcsOtherInput" min="0" step="0.01" placeholder="0" oninput="updateKitchenHourlyRatePreview()">
+          </div>
+        </div>
+        <div class="field">
+          <label data-i18n="kcsHoursLabel">عدد ساعات تشغيل المطبخ في الشهر</label>
+          <input type="number" id="kcsHoursInput" min="0" step="1" placeholder="مثال: 26 يوم × 10 ساعات = 260" oninput="updateKitchenHourlyRatePreview()">
+        </div>
+        <div class="cost-summary">
+          <div class="cs-line"><span data-i18n="kcsTotalMonthly">إجمالي التكاليف الشهرية</span><span id="kcsTotalMonthlyDisplay">0.00</span></div>
+          <div class="cs-line total"><span data-i18n="kcsHourlyRate">تكلفة تشغيل المطبخ في الساعة</span><span id="kcsHourlyRateDisplay">0.00</span></div>
+        </div>
+        <button class="btn" style="margin-top:14px;" onclick="saveKitchenCostSettings()" data-i18n="saveSettings">💾 حفظ الإعدادات</button>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <div class="panel-head">
           <h3 data-i18n="settingsBackupTitle">نسخة احتياطية</h3>
         </div>
         <p style="font-size:13px; color:var(--muted); margin:-8px 0 14px;" data-i18n="settingsBackupDesc">تنزيل نسخة كاملة من كل بيانات المطعم (الفروع، المنتجات، الطلبات، المخزون، الموردين، المصروفات...) كملف JSON واحد على جهازك.</p>
@@ -1441,18 +1477,19 @@
 
     <div class="field-row">
       <div class="field">
-        <label data-i18n="laborCost">تكلفة العمالة/الطهي</label>
-        <input type="number" id="productLaborCostInput" placeholder="10" min="0" step="0.01" oninput="updateProductCostSummary()">
+        <label data-i18n="prepTimeMinutes">وقت التحضير المتوقع (دقيقة)</label>
+        <input type="number" id="productPrepMinutesInput" placeholder="15" min="0" step="1" oninput="updateProductCostSummary()">
+        <p style="font-size:11px; color:var(--muted); margin-top:4px;" id="productCookingCostHint"></p>
       </div>
       <div class="field">
-        <label data-i18n="otherCosts">تكاليف أخرى</label>
+        <label data-i18n="otherCosts">تكاليف أخرى (تغليف وغيره)</label>
         <input type="number" id="productOtherCostsInput" placeholder="5" min="0" step="0.01" oninput="updateProductCostSummary()">
       </div>
     </div>
 
     <div class="cost-summary">
       <div class="cs-line"><span data-i18n="ingredientsCost">تكلفة المكونات</span><span id="csIngredientsCost">0.00</span></div>
-      <div class="cs-line"><span data-i18n="laborCost">تكلفة العمالة/الطهي</span><span id="csLaborCost">0.00</span></div>
+      <div class="cs-line"><span data-i18n="cookingCost">تكلفة الطهي (غاز، كهرباء، عمالة...)</span><span id="csLaborCost">0.00</span></div>
       <div class="cs-line"><span data-i18n="otherCosts">تكاليف أخرى</span><span id="csOtherCosts">0.00</span></div>
       <div class="cs-line total"><span data-i18n="totalCost">إجمالي التكلفة</span><span id="csTotalCost">0.00</span></div>
       <div class="cs-line" id="csProfitLine"><span data-i18n="expectedProfit">الربح المتوقع</span><span id="csProfit">0.00</span></div>
@@ -1476,7 +1513,7 @@
 <!-- Order Modal -->
 <div class="modal-overlay" id="orderModal">
   <div class="modal" style="max-width:460px;">
-    <h3 data-i18n="addOrder">طلب جديد</h3>
+    <h3 id="orderModalTitle" data-i18n="addOrder">طلب جديد</h3>
     <div class="field">
       <label data-i18n="colBranch">الفرع</label>
       <select id="orderBranchInput"></select>
@@ -2259,6 +2296,7 @@ let ordersCache = [];
 let ordersUnsubscribe = null;
 let orderItemsSelection = {}; // { productId: qty }
 let appliedCoupon = null;
+let editingOrderId = null; // set when the order modal is editing an existing pending/pending_payment order
 let deliveryZonesCache = [];
 let driversCache = [];
 let editingDeliveryZoneId = null;
@@ -2326,6 +2364,9 @@ const translations = {
     orderType:"نوع الطلب", dineIn:"صالة", takeaway:"تيك أواي", delivery:"دليفري",
     customerName:"اسم العميل (اختياري)", customerPhone:"رقم الهاتف (اختياري)", selectItems:"اختر المنتجات",
     total:"الإجمالي", orderSaved:"تم حفظ الطلب", orderDeleted:"تم حذف الطلب",
+    editOrder:"تعديل الطلب", saveChanges:"حفظ التعديلات", orderUpdated:"تم تحديث الطلب",
+    confirmCancelInProgress:"الطلب ده دخل المطبخ بالفعل. هل أنت متأكد إنك عايز تلغيه؟",
+    stockRestoredFor:"تم إرجاع المخزون",
     noBranchFirst:"أضف فرع واحد على الأقل أولاً", noProductFirst:"أضف منتج واحد على الأقل أولاً",
     selectAtLeastOne:"اختر منتج واحد على الأقل",
     status_pending:"جديد", status_preparing:"قيد التحضير", status_ready:"جاهز",
@@ -2409,6 +2450,15 @@ const translations = {
     viewShortages:"عرض النواقص",
     recipeBOM:"مكونات الوصفة (BOM)", noBomLinesYet:"لا توجد مكونات مضافة بعد",
     laborCost:"تكلفة العمالة/الطهي", otherCosts:"تكاليف أخرى",
+    cookingCost:"تكلفة الطهي (غاز، كهرباء، عمالة...)", cookingCostShort:"تكلفة الطهي", prepTimeMinutes:"وقت التحضير المتوقع (دقيقة)",
+    cookingCostFormula:"معادلة الحساب", minutesShort:"د",
+    kcsNotSetYet:"حدد إعدادات تكلفة تشغيل المطبخ من صفحة الإعدادات أولاً عشان تكلفة الطهي تتحسب",
+    kcsTitle:"تكلفة تشغيل المطبخ (تكلفة الطهي)",
+    kcsDesc:"اكتب هنا كل التكاليف الشهرية غير المباشرة لتشغيل المطبخ (غاز، كهرباء، أجور، تكاليف أخرى) وعدد ساعات تشغيل المطبخ في الشهر — النظام يحسب منها تكلفة الساعة، وبعدين تكلفة طهي أي منتج = وقت تحضيره × تكلفة الساعة دي، بتتحدث تلقائيًا في كل المنتجات.",
+    kcsGasLabel:"تكلفة الغاز الشهرية", kcsElectricityLabel:"تكلفة الكهرباء الشهرية",
+    kcsLaborLabel:"إجمالي أجور فريق المطبخ الشهرية", kcsOtherLabel:"تكاليف تشغيل أخرى شهرية (صيانة، نظافة...)",
+    kcsHoursLabel:"عدد ساعات تشغيل المطبخ في الشهر",
+    kcsTotalMonthly:"إجمالي التكاليف الشهرية", kcsHourlyRate:"تكلفة تشغيل المطبخ في الساعة",
     ingredientsCost:"تكلفة المكونات", totalCost:"إجمالي التكلفة",
     expectedProfit:"الربح المتوقع", profitMargin:"هامش الربح",
     createPOFromShortage:"تم إنشاء أمر شراء تلقائي بالنواقص", selectSupplierFirst:"اختر مورد أولاً",
@@ -2593,6 +2643,9 @@ const translations = {
     orderType:"Order Type", dineIn:"Dine-in", takeaway:"Takeaway", delivery:"Delivery",
     customerName:"Customer Name (optional)", customerPhone:"Phone Number (optional)", selectItems:"Select Items",
     total:"Total", orderSaved:"Order saved", orderDeleted:"Order deleted",
+    editOrder:"Edit Order", saveChanges:"Save Changes", orderUpdated:"Order updated",
+    confirmCancelInProgress:"This order has already entered the kitchen. Are you sure you want to cancel it?",
+    stockRestoredFor:"Stock restored",
     noBranchFirst:"Add at least one branch first", noProductFirst:"Add at least one product first",
     selectAtLeastOne:"Select at least one item",
     status_pending:"New", status_preparing:"Preparing", status_ready:"Ready",
@@ -2676,6 +2729,15 @@ const translations = {
     viewShortages:"View Shortages",
     recipeBOM:"Recipe Ingredients (BOM)", noBomLinesYet:"No ingredients added yet",
     laborCost:"Labor/Cooking Cost", otherCosts:"Other Costs",
+    cookingCost:"Cooking Cost (gas, electricity, labor...)", cookingCostShort:"Cooking Cost", prepTimeMinutes:"Expected Prep Time (minutes)",
+    cookingCostFormula:"Formula", minutesShort:"min",
+    kcsNotSetYet:"Set the kitchen cost settings on the Settings page first for cooking cost to be calculated",
+    kcsTitle:"Kitchen Operating Cost (Cooking Cost)",
+    kcsDesc:"Enter every monthly indirect cost of running the kitchen here (gas, electricity, wages, other) plus the kitchen's monthly operating hours — the system calculates an hourly rate from these, and every product's cooking cost = its prep time × this hourly rate, updated automatically across all products.",
+    kcsGasLabel:"Monthly Gas Cost", kcsElectricityLabel:"Monthly Electricity Cost",
+    kcsLaborLabel:"Total Monthly Kitchen Staff Wages", kcsOtherLabel:"Other Monthly Operating Costs (maintenance, cleaning...)",
+    kcsHoursLabel:"Kitchen Operating Hours per Month",
+    kcsTotalMonthly:"Total Monthly Cost", kcsHourlyRate:"Kitchen Operating Cost per Hour",
     ingredientsCost:"Ingredients Cost", totalCost:"Total Cost",
     expectedProfit:"Expected Profit", profitMargin:"Profit Margin",
     createPOFromShortage:"Draft purchase order created for shortages", selectSupplierFirst:"Select a supplier first",
@@ -2931,6 +2993,7 @@ if(publicMenuRestaurantId){
     await loadDrivers();
     await loadShifts();
     await loadCustomerContacts();
+    await loadKitchenCostSettings();
     startOrdersListener();
     // No Firestore write happens purely because time passed, so an order sitting at
     // exactly the 24h archive boundary wouldn't re-render on its own if the dashboard
@@ -2965,7 +3028,7 @@ function showModule(name){
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
   if(name === 'costCalculator'){ populateCcCategoryFilter(); renderCostCalculator(); }
-  if(name === 'settings'){ renderMenuQrSection(); renderOrderPageQrSection(); loadPublicSettingsForm(); }
+  if(name === 'settings'){ renderMenuQrSection(); renderOrderPageQrSection(); loadPublicSettingsForm(); loadKitchenCostSettingsForm(); }
   if(name === 'whatsappLog') loadWhatsappMessagesLog();
   if(name === 'customers') renderCustomersTable();
   if(name === 'shifts'){ populateShiftBranchSelect(); renderCurrentShiftStatus(); renderShiftsHistoryTable(); }
@@ -3440,7 +3503,7 @@ function openProductModal(productId){
     document.getElementById('productCategoryInput').value = p.categoryId || '';
     document.getElementById('productCaloriesInput').value = p.calories || '';
     document.getElementById('productAvailableInput').checked = p.available !== false;
-    document.getElementById('productLaborCostInput').value = p.laborCost || '';
+    document.getElementById('productPrepMinutesInput').value = p.prepTimeMinutes || '';
     document.getElementById('productOtherCostsInput').value = p.otherCosts || '';
     currentProductBom = { ...(p.bom || {}) };
     existingProductImageUrl = p.imageUrl || '';
@@ -3458,7 +3521,7 @@ function openProductModal(productId){
     document.getElementById('productPriceInput').value = '';
     document.getElementById('productCaloriesInput').value = '';
     document.getElementById('productAvailableInput').checked = true;
-    document.getElementById('productLaborCostInput').value = '';
+    document.getElementById('productPrepMinutesInput').value = '';
     document.getElementById('productOtherCostsInput').value = '';
     currentProductBom = {};
     existingProductImageUrl = '';
@@ -3546,7 +3609,8 @@ async function saveProduct(){
   const caloriesRaw = document.getElementById('productCaloriesInput').value;
   const calories = caloriesRaw !== '' ? Math.max(0, parseInt(caloriesRaw) || 0) : null;
   const available = document.getElementById('productAvailableInput').checked;
-  const laborCost = parseFloat(document.getElementById('productLaborCostInput').value) || 0;
+  const prepTimeMinutes = parseFloat(document.getElementById('productPrepMinutesInput').value) || 0;
+  const laborCost = (prepTimeMinutes/60) * computeKitchenHourlyRate();
   const otherCosts = parseFloat(document.getElementById('productOtherCostsInput').value) || 0;
   const bom = { ...currentProductBom };
   const ingredientsCost = computeBomCost();
@@ -3577,7 +3641,7 @@ async function saveProduct(){
       progressEl.style.display = 'none';
     }
 
-    const data = { name_ar, name_en, price, categoryId, calories, available, imageUrl, laborCost, otherCosts, bom, ingredientsCost, totalCost };
+    const data = { name_ar, name_en, price, categoryId, calories, available, imageUrl, prepTimeMinutes, laborCost, otherCosts, bom, ingredientsCost, totalCost };
 
     if(editingProductId){
       await productsCol().doc(editingProductId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
@@ -4312,22 +4376,27 @@ function renderOrderCard(o){
   let shortageHtml = '';
   if(o.status === 'pending_payment'){
     actionsHtml = `<button class="primary-action" onclick="confirmOrderTransfer('${o.id}')">${t('confirmTransfer')}</button>
+      <button class="btn-outline" onclick="openOrderModal('${o.id}')" style="flex:1; font-size:11px; padding:6px 4px; border-radius:6px;">${t('edit')}</button>
       <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('rejectOrder')}</button>`;
   } else if(o.status === 'pending'){
     actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','preparing')">${t('markPreparing')}</button>
+      <button class="btn-outline" onclick="openOrderModal('${o.id}')" style="flex:1; font-size:11px; padding:6px 4px; border-radius:6px;">${t('edit')}</button>
       <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('markCancelled')}</button>`;
   } else if(o.status === 'preparing'){
-    actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','ready')">${t('markReady')}</button>`;
+    actionsHtml = `<button class="primary-action" onclick="updateOrderStatus('${o.id}','ready')">${t('markReady')}</button>
+      <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('markCancelled')}</button>`;
     const shortages = checkOrderStockShortage(o);
     if(shortages.length > 0){
       shortageHtml = `<div style="font-size:11px; color:var(--danger); margin-bottom:6px;">⚠️ ${t('insufficientStock')}: ${shortages.map(escapeHtml).join('، ')}</div>`;
     }
   } else if(o.status === 'ready'){
     // Delivery orders get an extra "out for delivery" step; dine-in/takeaway go straight
-    // to delivered, same as before.
+    // to delivered, same as before. Both still allow last-minute cancellation.
     actionsHtml = isDelivery
-      ? `<button class="primary-action" onclick="updateOrderStatus('${o.id}','out_for_delivery')">${t('markOutForDelivery')}</button>`
-      : `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>`;
+      ? `<button class="primary-action" onclick="updateOrderStatus('${o.id}','out_for_delivery')">${t('markOutForDelivery')}</button>
+         <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('markCancelled')}</button>`
+      : `<button class="primary-action" onclick="updateOrderStatus('${o.id}','delivered')">${t('markDelivered')}</button>
+         <button class="danger-action" onclick="updateOrderStatus('${o.id}','cancelled')">${t('markCancelled')}</button>`;
   } else if(o.status === 'out_for_delivery'){
     // Deliberately no staff-side "delivered" button here anymore — only the driver, from
     // driver-track.html, can close a delivery order out now (and only after confirming
@@ -4426,6 +4495,12 @@ async function updateOrderStatus(orderId, newStatus){
         return;
       }
     }
+    // Cancelling an order that's already in the kitchen (or later) is a bigger deal than
+    // cancelling a fresh pending one — prep may already be underway and stock may already
+    // be deducted (if it reached "ready") — so ask for explicit confirmation first.
+    if(newStatus === 'cancelled' && order && (order.status === 'preparing' || order.status === 'ready')){
+      if(!confirm(t('confirmCancelInProgress'))) return;
+    }
     // preparingStartedAt/readyAt capture the real moments the order entered the kitchen
     // and left it "جاهز", independent of updatedAt (which gets overwritten on every
     // later status change). outForDeliveryAt is the same idea for dispatch — without it
@@ -4447,6 +4522,12 @@ async function updateOrderStatus(orderId, newStatus){
     if(newStatus === 'delivered' || newStatus === 'cancelled'){
       statusPayload.closedAt = firebase.firestore.FieldValue.serverTimestamp();
     }
+    // If this order already had stock deducted (it had reached "ready" before being
+    // cancelled), the reversal below puts it back — reset the flag so nothing downstream
+    // mistakenly thinks stock is still held against a cancelled order.
+    if(newStatus === 'cancelled' && order && order.stockDeducted){
+      statusPayload.stockDeducted = false;
+    }
     await ordersCol().doc(orderId).update(statusPayload);
 
     // Whenever an order moves into "preparing" (whether it came from a staff-created
@@ -4465,6 +4546,15 @@ async function updateOrderStatus(orderId, newStatus){
         showToast(t('stockDeductedFor') + ': ' + deductedNames.join('، '));
       } else {
         showToast(t('noStockToDeduct'));
+      }
+    }
+
+    // Mirror image of the deduction above: give back whatever stock was taken out for
+    // this order once it's cancelled, since the food will no longer be made.
+    if(newStatus === 'cancelled' && order && order.stockDeducted){
+      const restoredNames = await reverseStockForOrder(order);
+      if(restoredNames.length > 0){
+        showToast(t('stockRestoredFor') + ': ' + restoredNames.join('، '));
       }
     }
   }catch(e){
@@ -6082,9 +6172,52 @@ async function deductStockForOrder(order){
   return deductedNames;
 }
 
-function openOrderModal(){
+// Mirror image of deductStockForOrder — adds each ingredient's quantity back to stock.
+// Used when a "ready" order (whose stock has already been deducted) gets cancelled.
+// Deliberately doesn't try to reverse the Math.max(0, ...) floor deductStockForOrder may
+// have applied (i.e. if stock was already insufficient at deduction time) — same
+// simplification the rest of this stock system already accepts.
+async function reverseStockForOrder(order){
+  const additions = {}; // { ingredientId: totalQtyToRestore }
+
+  (order.items||[]).forEach(item=>{
+    const product = productsCache.find(p=> p.id === item.productId);
+    if(!product || !product.bom || Object.keys(product.bom).length === 0) return;
+    Object.entries(product.bom).forEach(([ingId, qtyPerUnit])=>{
+      additions[ingId] = (additions[ingId]||0) + (qtyPerUnit * item.qty);
+    });
+  });
+
+  const ingredientIds = Object.keys(additions);
+  if(ingredientIds.length === 0) return [];
+
+  const restoredNames = [];
+  try{
+    const batch = db.batch();
+    ingredientIds.forEach(ingId=>{
+      const ing = ingredientsCache.find(x=> x.id === ingId);
+      if(ing){
+        const newStock = (ing.currentStock||0) + additions[ingId];
+        batch.update(ingredientsCol().doc(ingId), { currentStock: newStock });
+        restoredNames.push(`${ing.name} (+${additions[ingId]})`);
+      }
+    });
+    await batch.commit();
+    await loadIngredients();
+  }catch(e){
+    console.error('reverseStockForOrder error', e);
+  }
+  return restoredNames;
+}
+
+function openOrderModal(orderId){
   if(branchesCache.length === 0){ showToast(t('noBranchFirst')); return; }
   if(productsCache.length === 0){ showToast(t('noProductFirst')); return; }
+
+  editingOrderId = orderId || null;
+  const editingOrder = orderId ? ordersCache.find(o=> o.id === orderId) : null;
+  document.getElementById('orderModalTitle').textContent = editingOrder ? t('editOrder') : t('addOrder');
+  document.getElementById('saveOrderBtn').textContent = editingOrder ? t('saveChanges') : t('save');
 
   orderItemsSelection = {};
   appliedCoupon = null;
@@ -6100,15 +6233,48 @@ function openOrderModal(){
   const branchSel = document.getElementById('orderBranchInput');
   branchSel.innerHTML = selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
 
-  // Most orders in a session use the same branch and order type — re-selecting them
-  // every single time is pure repeated data entry. Restore whatever was used last
-  // instead of resetting to the first branch / "dine-in" every time the modal opens.
-  const lastBranchId = getRememberedOrderPref('lastOrderBranchId');
-  if(lastBranchId && [...branchSel.options].some(o=> o.value === lastBranchId)){
-    branchSel.value = lastBranchId;
+  if(editingOrder){
+    // Prefill every field from the existing order instead of the "remembered last used"
+    // defaults — editing should reflect what was actually saved for this order.
+    if([...branchSel.options].some(o=> o.value === editingOrder.branchId)){
+      branchSel.value = editingOrder.branchId;
+    }
+    document.getElementById('orderTypeInput').value = editingOrder.orderType || 'dine-in';
+    toggleDeliveryFields();
+    if(editingOrder.orderType === 'delivery'){
+      document.getElementById('orderDeliveryAddressInput').value = editingOrder.deliveryAddress || '';
+      const zoneSel = document.getElementById('orderDeliveryZoneInput');
+      if(editingOrder.deliveryZoneId && [...zoneSel.options].some(o=> o.value === editingOrder.deliveryZoneId)){
+        zoneSel.value = editingOrder.deliveryZoneId;
+      }
+      document.getElementById('orderDeliveryFeeInput').value = editingOrder.deliveryFee || '';
+      document.getElementById('orderPlatformSourceInput').value = editingOrder.platformSource || 'internal';
+      const driverSel = document.getElementById('orderDriverInput');
+      if(editingOrder.driverId && [...driverSel.options].some(o=> o.value === editingOrder.driverId)){
+        driverSel.value = editingOrder.driverId;
+      }
+    }
+    (editingOrder.items||[]).forEach(item=>{
+      if(item.productId) orderItemsSelection[item.productId] = item.qty;
+    });
+    document.getElementById('orderCustomerNameInput').value = editingOrder.customerName || '';
+    document.getElementById('orderCustomerPhoneInput').value = editingOrder.customerPhone || '';
+    document.getElementById('orderPaymentMethodInput').value = editingOrder.paymentMethod || 'cash';
+    if(editingOrder.couponCode){
+      document.getElementById('orderCouponInput').value = editingOrder.couponCode;
+      applyOrderCoupon();
+    }
+  } else {
+    // Most orders in a session use the same branch and order type — re-selecting them
+    // every single time is pure repeated data entry. Restore whatever was used last
+    // instead of resetting to the first branch / "dine-in" every time the modal opens.
+    const lastBranchId = getRememberedOrderPref('lastOrderBranchId');
+    if(lastBranchId && [...branchSel.options].some(o=> o.value === lastBranchId)){
+      branchSel.value = lastBranchId;
+    }
+    document.getElementById('orderTypeInput').value = getRememberedOrderPref('lastOrderType') || 'dine-in';
+    toggleDeliveryFields(); // shows/hides + populates zone & driver selects based on the restored type
   }
-  document.getElementById('orderTypeInput').value = getRememberedOrderPref('lastOrderType') || 'dine-in';
-  toggleDeliveryFields(); // shows/hides + populates zone & driver selects based on the restored type
 
   renderOrderItemsPicker();
   updateOrderTotalDisplay();
@@ -6128,6 +6294,7 @@ function setRememberedOrderPref(key, value){
 
 function closeOrderModal(){
   document.getElementById('orderModal').classList.remove('active');
+  editingOrderId = null;
 }
 
 // Returns the maximum number of units of a product that current ingredient stock allows,
@@ -6387,25 +6554,42 @@ async function saveOrder(){
   const saveBtn = document.getElementById('saveOrderBtn');
   saveBtn.disabled = true;
   try{
-    await ordersCol().add({
-      branchId, orderType, customerName, customerPhone, paymentMethod, items,
-      subtotal, discount, deliveryFee, total,
-      ...deliveryData,
-      couponCode: appliedCoupon ? appliedCoupon.code : null,
-      status: 'pending',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    await logActivity('🧾', `تم إنشاء طلب جديد بقيمة ${total.toFixed(2)} جنيه`, `New order created — ${total.toFixed(2)} EGP`);
-    if(appliedCoupon){
-      await couponsCol().doc(appliedCoupon.id).update({ usedCount: firebase.firestore.FieldValue.increment(1) });
-      await loadCoupons();
+    if(editingOrderId){
+      // Editing keeps the order's status/createdAt/stock-deduction flag as-is — only the
+      // content of the order (items, totals, customer/delivery info) changes. Editing is
+      // only offered from the UI while an order is still pending_payment/pending, i.e.
+      // before stock has ever been deducted for it, so there's nothing to reconcile there.
+      await ordersCol().doc(editingOrderId).update({
+        branchId, orderType, customerName, customerPhone, paymentMethod, items,
+        subtotal, discount, deliveryFee, total,
+        ...deliveryData,
+        couponCode: appliedCoupon ? appliedCoupon.code : null,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await logActivity('✏️', `تم تعديل طلب بقيمة ${total.toFixed(2)} جنيه`, `Order edited — ${total.toFixed(2)} EGP`);
+      closeOrderModal();
+      showToast(t('orderUpdated'));
+    } else {
+      await ordersCol().add({
+        branchId, orderType, customerName, customerPhone, paymentMethod, items,
+        subtotal, discount, deliveryFee, total,
+        ...deliveryData,
+        couponCode: appliedCoupon ? appliedCoupon.code : null,
+        status: 'pending',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await logActivity('🧾', `تم إنشاء طلب جديد بقيمة ${total.toFixed(2)} جنيه`, `New order created — ${total.toFixed(2)} EGP`);
+      if(appliedCoupon){
+        await couponsCol().doc(appliedCoupon.id).update({ usedCount: firebase.firestore.FieldValue.increment(1) });
+        await loadCoupons();
+      }
+      // Remember this branch/order type as the default for next time — most sessions use
+      // the same values repeatedly (e.g. one branch, mostly dine-in orders).
+      setRememberedOrderPref('lastOrderBranchId', branchId);
+      setRememberedOrderPref('lastOrderType', orderType);
+      closeOrderModal();
+      showToast(t('orderSaved'));
     }
-    // Remember this branch/order type as the default for next time — most sessions use
-    // the same values repeatedly (e.g. one branch, mostly dine-in orders).
-    setRememberedOrderPref('lastOrderBranchId', branchId);
-    setRememberedOrderPref('lastOrderType', orderType);
-    closeOrderModal();
-    showToast(t('orderSaved'));
   }catch(e){
     console.error('saveOrder error', e);
     showToast(e.message);
@@ -6976,6 +7160,78 @@ function renderActivityLog(){
   }).join('');
 }
 
+/* ---------- Kitchen Cost Settings (Firestore: restaurants/{rid}/settings/costSettings) ----------
+   A single blended hourly rate for "cooking cost" that folds in every indirect cost of
+   actually running the kitchen — gas, electricity, kitchen labor, and any other recurring
+   overhead — not just a flat labor number typed per product. The owner enters monthly
+   totals + monthly operating hours here once; every product then only needs its own prep
+   time, and its cooking cost is prepTimeMinutes/60 * this hourly rate, computed live. */
+function costSettingsDoc(){
+  return db.collection('restaurants').doc(currentRestaurantId).collection('settings').doc('costSettings');
+}
+
+let kitchenCostSettingsCache = { gasCost:0, electricityCost:0, laborCost:0, otherCost:0, operatingHours:0 };
+
+function computeKitchenHourlyRate(){
+  const s = kitchenCostSettingsCache;
+  const totalMonthly = Number(s.gasCost||0) + Number(s.electricityCost||0) + Number(s.laborCost||0) + Number(s.otherCost||0);
+  const hours = Number(s.operatingHours||0);
+  return hours > 0 ? totalMonthly / hours : 0;
+}
+
+async function loadKitchenCostSettings(){
+  try{
+    const doc = await costSettingsDoc().get();
+    kitchenCostSettingsCache = doc.exists ? doc.data() : { gasCost:0, electricityCost:0, laborCost:0, otherCost:0, operatingHours:0 };
+  }catch(e){
+    console.error('loadKitchenCostSettings error', e);
+  }
+}
+
+function loadKitchenCostSettingsForm(){
+  const s = kitchenCostSettingsCache;
+  document.getElementById('kcsGasInput').value = s.gasCost || '';
+  document.getElementById('kcsElectricityInput').value = s.electricityCost || '';
+  document.getElementById('kcsLaborInput').value = s.laborCost || '';
+  document.getElementById('kcsOtherInput').value = s.otherCost || '';
+  document.getElementById('kcsHoursInput').value = s.operatingHours || '';
+  updateKitchenHourlyRatePreview();
+}
+
+// Live preview as the owner types, before saving — same idea as the product cost summary.
+function updateKitchenHourlyRatePreview(){
+  const gasCost = parseFloat(document.getElementById('kcsGasInput')?.value) || 0;
+  const electricityCost = parseFloat(document.getElementById('kcsElectricityInput')?.value) || 0;
+  const laborCost = parseFloat(document.getElementById('kcsLaborInput')?.value) || 0;
+  const otherCost = parseFloat(document.getElementById('kcsOtherInput')?.value) || 0;
+  const operatingHours = parseFloat(document.getElementById('kcsHoursInput')?.value) || 0;
+  const totalMonthly = gasCost + electricityCost + laborCost + otherCost;
+  const hourlyRate = operatingHours > 0 ? totalMonthly / operatingHours : 0;
+  document.getElementById('kcsTotalMonthlyDisplay').textContent = totalMonthly.toFixed(2);
+  document.getElementById('kcsHourlyRateDisplay').textContent = hourlyRate.toFixed(2);
+}
+
+async function saveKitchenCostSettings(){
+  const data = {
+    gasCost: parseFloat(document.getElementById('kcsGasInput').value) || 0,
+    electricityCost: parseFloat(document.getElementById('kcsElectricityInput').value) || 0,
+    laborCost: parseFloat(document.getElementById('kcsLaborInput').value) || 0,
+    otherCost: parseFloat(document.getElementById('kcsOtherInput').value) || 0,
+    operatingHours: parseFloat(document.getElementById('kcsHoursInput').value) || 0
+  };
+  try{
+    await costSettingsDoc().set(data, { merge:true });
+    kitchenCostSettingsCache = data;
+    showToast(t('settingsSaved'));
+    // The hourly rate feeds every product's cooking cost — refresh anywhere it's shown.
+    updateProductCostSummary();
+    renderCostCalculator();
+  }catch(e){
+    console.error('saveKitchenCostSettings error', e);
+    showToast(e.message);
+  }
+}
+
 /* ---------- Public Settings (Firestore: restaurants/{rid}/publicSettings/info) ----------
    Kept in a separate subdocument (not the main restaurants/{rid} doc) so the public
    ordering page can be granted read access to just this document via Firestore rules,
@@ -7388,12 +7644,21 @@ function computeBomCost(){
 
 function updateProductCostSummary(){
   const ingredientsCost = computeBomCost();
-  const laborCost = parseFloat(document.getElementById('productLaborCostInput')?.value) || 0;
+  const prepTimeMinutes = parseFloat(document.getElementById('productPrepMinutesInput')?.value) || 0;
+  const hourlyRate = computeKitchenHourlyRate();
+  const laborCost = (prepTimeMinutes/60) * hourlyRate;
   const otherCosts = parseFloat(document.getElementById('productOtherCostsInput')?.value) || 0;
   const totalCost = ingredientsCost + laborCost + otherCosts;
   const price = parseFloat(document.getElementById('productPriceInput')?.value) || 0;
   const profit = price - totalCost;
   const margin = price > 0 ? (profit/price)*100 : 0;
+
+  const hint = document.getElementById('productCookingCostHint');
+  if(hint){
+    hint.textContent = hourlyRate > 0
+      ? `${t('cookingCostFormula')}: ${prepTimeMinutes||0} ${t('minutesShort')} × ${hourlyRate.toFixed(2)} = ${laborCost.toFixed(2)}`
+      : t('kcsNotSetYet');
+  }
 
   document.getElementById('csIngredientsCost').textContent = ingredientsCost.toFixed(2);
   document.getElementById('csLaborCost').textContent = laborCost.toFixed(2);
@@ -7423,7 +7688,12 @@ function computeLiveProductCost(p){
     if(ing){ ingredientsCost += (ing.costPerUnit||0) * qty; }
     else { missingIngredient = true; }
   });
-  const laborCost = Number(p.laborCost||0);
+  // Cooking cost (labor + gas + electricity + other overhead, blended into one hourly
+  // rate) is recomputed live too, from this product's prep time and the CURRENT rate —
+  // same reasoning as ingredientsCost above: an updated gas bill in Settings should show
+  // up here immediately, not just for products someone happens to re-save.
+  const prepTimeMinutes = Number(p.prepTimeMinutes||0);
+  const laborCost = (prepTimeMinutes/60) * computeKitchenHourlyRate();
   const otherCosts = Number(p.otherCosts||0);
   const totalCost = ingredientsCost + laborCost + otherCosts;
   const price = Number(p.price||0);
