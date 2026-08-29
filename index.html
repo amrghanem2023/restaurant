@@ -562,10 +562,17 @@
     <div id="module-reports" class="module-content" style="display:none;">
       <div class="report-filters">
         <select id="reportPeriodSelect" onchange="onReportFilterChange()">
-          <option value="7" data-i18n="last7Days">آخر 7 أيام</option>
-          <option value="30" data-i18n="last30Days">آخر 30 يوم</option>
-          <option value="90" data-i18n="last90Days">آخر 90 يوم</option>
+          <option value="today" data-i18n="periodToday">اليوم</option>
+          <option value="thisWeek" data-i18n="periodThisWeek">هذا الأسبوع</option>
+          <option value="thisMonth" data-i18n="periodThisMonth">هذا الشهر</option>
+          <option value="thisYear" data-i18n="periodThisYear">هذه السنة</option>
+          <option value="last7" selected data-i18n="last7Days">آخر 7 أيام</option>
+          <option value="last30" data-i18n="last30Days">آخر 30 يوم</option>
+          <option value="last90" data-i18n="last90Days">آخر 90 يوم</option>
+          <option value="custom" data-i18n="periodCustom">فترة مخصصة</option>
         </select>
+        <input type="date" id="reportCustomFrom" onchange="onReportFilterChange()" style="display:none;">
+        <input type="date" id="reportCustomTo" onchange="onReportFilterChange()" style="display:none;">
         <select id="reportBranchSelect" onchange="onReportFilterChange()">
           <option value="all" data-i18n="allBranches">كل الفروع</option>
         </select>
@@ -591,7 +598,15 @@
           <div class="value" id="reportCancelledOrders">0</div>
         </div>
         <div class="stat-card">
-          <div class="label" data-i18n="totalExpenses">إجمالي المصاريف</div>
+          <div class="label" data-i18n="cogs">تكلفة البضاعة المباعة</div>
+          <div class="value" id="reportCogs">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="grossProfit">مجمل الربح</div>
+          <div class="value" id="reportGrossProfit">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="label" data-i18n="operatingExpenses">المصاريف التشغيلية</div>
           <div class="value" id="reportTotalExpenses">0</div>
         </div>
         <div class="stat-card">
@@ -599,6 +614,7 @@
           <div class="value" id="reportNetProfit">0</div>
         </div>
       </div>
+      <p style="font-size:11px; color:var(--muted); margin:-10px 0 6px;" data-i18n="cogsDisclaimer">تكلفة البضاعة المباعة هنا تقديرية، محسوبة بأسعار المكونات وتكلفة الطهي الحالية (وليس بالضرورة نفس السعر وقت كل طلب قديم).</p>
 
       <div class="panel">
         <div class="panel-head"><h3 data-i18n="revenueOverTime">الإيرادات خلال الفترة</h3></div>
@@ -676,6 +692,36 @@
               </tr>
             </thead>
             <tbody id="paymentMethodRevenueTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Expenses broken down by category (electricity, salaries, taxes, rent,
+           maintenance, other) for the same period+branch filter — this is where
+           taxes and maintenance specifically become visible as their own line
+           items instead of being buried inside one lump "total expenses" figure. -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="expensesByCategory">المصاريف حسب الفئة</h3>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline" onclick="printTable('expensesByCategoryTable', t('expensesByCategory'))" data-i18n="print">طباعة</button>
+            <button class="btn btn-outline" onclick="exportTableToExcel('expensesByCategoryTable', t('expensesByCategory'))" data-i18n="exportExcel">تصدير Excel</button>
+          </div>
+        </div>
+        <div id="expensesByCategoryWrap">
+          <div class="empty-state" id="expensesByCategoryEmpty">
+            <div class="icon">🧾</div>
+            <p data-i18n="noDataYet">لا توجد بيانات كافية بعد</p>
+          </div>
+          <table id="expensesByCategoryTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colCategory">الفئة</th>
+                <th data-i18n="colAmount">المبلغ</th>
+                <th data-i18n="colPercentOfExpenses">% من المصاريف</th>
+              </tr>
+            </thead>
+            <tbody id="expensesByCategoryTbody"></tbody>
           </table>
         </div>
       </div>
@@ -2596,6 +2642,10 @@ const translations = {
     viewShiftTransactions:"عرض المعاملات", colTime:"الوقت", colOrderNum:"رقم الطلب",
     colOrderTotal:"الإجمالي", noShiftTransactions:"مفيش معاملات مسجّلة في الفترة دي",
     close:"إغلاق", revenueByPaymentMethod:"الإيرادات حسب طريقة الدفع", colPercentOfSales:"% من المبيعات",
+    colPercentOfExpenses:"% من المصاريف", expensesByCategory:"المصاريف حسب الفئة",
+    periodToday:"اليوم", periodThisWeek:"هذا الأسبوع", periodThisMonth:"هذا الشهر", periodThisYear:"هذه السنة", periodCustom:"فترة مخصصة",
+    cogs:"تكلفة البضاعة المباعة", grossProfit:"مجمل الربح", operatingExpenses:"المصاريف التشغيلية",
+    cogsDisclaimer:"تكلفة البضاعة المباعة هنا تقديرية، محسوبة بأسعار المكونات وتكلفة الطهي الحالية (وليس بالضرورة نفس السعر وقت كل طلب قديم).",
     openNewShift:"فتح وردية جديدة", openingCash:"المبلغ الافتتاحي (النقدية في الدرج)",
     openShift:"فتح الوردية", closeShift:"قفل الوردية",
     noOpenShift:"لا توجد وردية مفتوحة لهذا الفرع", shiftOpenSince:"الوردية مفتوحة منذ",
@@ -2875,6 +2925,10 @@ const translations = {
     viewShiftTransactions:"View Transactions", colTime:"Time", colOrderNum:"Order #",
     colOrderTotal:"Total", noShiftTransactions:"No transactions recorded in this period",
     close:"Close", revenueByPaymentMethod:"Revenue by Payment Method", colPercentOfSales:"% of Sales",
+    colPercentOfExpenses:"% of Expenses", expensesByCategory:"Expenses by Category",
+    periodToday:"Today", periodThisWeek:"This Week", periodThisMonth:"This Month", periodThisYear:"This Year", periodCustom:"Custom Range",
+    cogs:"Cost of Goods Sold", grossProfit:"Gross Profit", operatingExpenses:"Operating Expenses",
+    cogsDisclaimer:"Cost of Goods Sold here is an estimate, calculated using current ingredient and cooking cost prices (not necessarily the same price at the time of each past order).",
     openNewShift:"Open New Shift", openingCash:"Opening Cash (drawer float)",
     openShift:"Open Shift", closeShift:"Close Shift",
     noOpenShift:"No open shift for this branch", shiftOpenSince:"Shift open since",
@@ -3267,14 +3321,28 @@ function buildTempReportsTable(){
   const validOrders = filtered.filter(o=> o.status !== 'cancelled');
   const totalRevenue = validOrders.reduce((sum,o)=> sum + (o.total||0), 0);
   const avgOrder = validOrders.length ? totalRevenue / validOrders.length : 0;
-  const totalExpenses = getReportFilteredExpenses().reduce((sum,e)=> sum + (e.amount||0), 0);
+  const periodExpenses = getReportFilteredExpenses();
+  const totalExpenses = periodExpenses.reduce((sum,e)=> sum + (e.amount||0), 0);
+  const cogs = computeOrdersCOGS(validOrders);
+  const grossProfit = totalRevenue - cogs;
+  const netProfit = grossProfit - totalExpenses;
+
+  const byCategory = {};
+  periodExpenses.forEach(e=>{
+    const cat = e.category || 'other';
+    byCategory[cat] = (byCategory[cat]||0) + (e.amount||0);
+  });
+
   const rows = [
     [t('reportTotalOrders'), filtered.length],
     [t('reportTotalRevenue'), totalRevenue.toFixed(2)],
     [t('reportAvgOrder'), avgOrder.toFixed(2)],
     [t('reportCancelled'), filtered.filter(o=>o.status==='cancelled').length],
-    [t('totalExpenses'), totalExpenses.toFixed(2)],
-    [t('netProfit'), (totalRevenue - totalExpenses).toFixed(2)]
+    [t('cogs'), cogs.toFixed(2)],
+    [t('grossProfit'), grossProfit.toFixed(2)],
+    ...Object.entries(byCategory).map(([cat, amount])=> [`   ${t('cat_'+cat) || cat}`, amount.toFixed(2)]),
+    [t('operatingExpenses'), totalExpenses.toFixed(2)],
+    [t('netProfit'), netProfit.toFixed(2)]
   ];
   buildTempExportTable('reportsExportTable', [t('colName'), t('colAmount')], rows);
 }
@@ -6883,19 +6951,55 @@ async function deleteCoupon(couponId){
 
 /* ---------- Reports (computed client-side from ordersCache — no extra Firestore reads) ---------- */
 function onReportFilterChange(){
+  const period = document.getElementById('reportPeriodSelect')?.value;
+  const isCustom = period === 'custom';
+  document.getElementById('reportCustomFrom').style.display = isCustom ? 'inline-block' : 'none';
+  document.getElementById('reportCustomTo').style.display = isCustom ? 'inline-block' : 'none';
   renderReports();
 }
 
+// Translates the period selector into a concrete [from, to] Date range. Day/week/month/
+// year presets use real calendar boundaries (not just "N days back") so "هذا الشهر" means
+// the 1st of this month through now, not a rolling 30-day window — that's what someone
+// asking for a monthly report actually expects. Week starts Saturday (Egypt convention).
+function getReportDateRange(){
+  const period = document.getElementById('reportPeriodSelect')?.value || 'last7';
+  const now = new Date();
+  let from, to = new Date(now);
+  to.setHours(23,59,59,999);
+
+  if(period === 'today'){
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  } else if(period === 'thisWeek'){
+    const day = now.getDay(); // 0=Sun...6=Sat
+    const daysSinceSaturday = (day + 1) % 7;
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceSaturday);
+  } else if(period === 'thisMonth'){
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if(period === 'thisYear'){
+    from = new Date(now.getFullYear(), 0, 1);
+  } else if(period === 'custom'){
+    const fromVal = document.getElementById('reportCustomFrom')?.value;
+    const toVal = document.getElementById('reportCustomTo')?.value;
+    from = fromVal ? new Date(fromVal + 'T00:00:00') : new Date(now.getFullYear(), now.getMonth(), 1);
+    to = toVal ? new Date(toVal + 'T23:59:59') : to;
+  } else {
+    const days = period === 'last30' ? 30 : period === 'last90' ? 90 : 7;
+    from = new Date(now);
+    from.setDate(from.getDate() - days);
+    from.setHours(0,0,0,0);
+  }
+  return { from, to };
+}
+
 function getReportFilteredOrders(){
-  const days = parseInt(document.getElementById('reportPeriodSelect')?.value || '7');
+  const { from, to } = getReportDateRange();
   const branchId = document.getElementById('reportBranchSelect')?.value || 'all';
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
 
   return ordersCache.filter(o=>{
     if(!o.createdAt || !o.createdAt.toDate) return false;
     const created = o.createdAt.toDate();
-    if(created < cutoff) return false;
+    if(created < from || created > to) return false;
     if(branchId !== 'all' && o.branchId !== branchId) return false;
     return true;
   });
@@ -6908,16 +7012,23 @@ function renderReports(){
   const filtered = getReportFilteredOrders();
   const validOrders = filtered.filter(o=> o.status !== 'cancelled');
   const cancelledOrders = filtered.filter(o=> o.status === 'cancelled');
+  const periodExpenses = getReportFilteredExpenses();
 
   const totalRevenue = validOrders.reduce((sum,o)=> sum + (o.total||0), 0);
   const avgOrder = validOrders.length ? totalRevenue / validOrders.length : 0;
-  const totalExpenses = getReportFilteredExpenses().reduce((sum,e)=> sum + (e.amount||0), 0);
-  const netProfit = totalRevenue - totalExpenses;
+  const cogs = computeOrdersCOGS(validOrders);
+  const grossProfit = totalRevenue - cogs;
+  const totalExpenses = periodExpenses.reduce((sum,e)=> sum + (e.amount||0), 0);
+  const netProfit = grossProfit - totalExpenses;
 
   document.getElementById('reportTotalOrders').textContent = filtered.length;
   document.getElementById('reportTotalRevenue').textContent = totalRevenue.toFixed(2);
   document.getElementById('reportAvgOrder').textContent = avgOrder.toFixed(2);
   document.getElementById('reportCancelledOrders').textContent = cancelledOrders.length;
+  document.getElementById('reportCogs').textContent = cogs.toFixed(2);
+  const grossProfitEl = document.getElementById('reportGrossProfit');
+  grossProfitEl.textContent = grossProfit.toFixed(2);
+  grossProfitEl.style.color = grossProfit < 0 ? 'var(--danger)' : 'inherit';
   document.getElementById('reportTotalExpenses').textContent = totalExpenses.toFixed(2);
   const netProfitEl = document.getElementById('reportNetProfit');
   netProfitEl.textContent = netProfit.toFixed(2);
@@ -6927,6 +7038,40 @@ function renderReports(){
   renderTopProducts(validOrders);
   renderBranchRevenue(validOrders);
   renderPaymentMethodRevenue(validOrders);
+  renderExpensesByCategory(periodExpenses);
+}
+
+// Groups the period's expenses by category (كهرباء/مرتبات/ضرائب/إيجار/صيانة/أخرى) so
+// taxes and maintenance — specifically called out as their own line items — are visible
+// at a glance instead of buried inside one lump total.
+function renderExpensesByCategory(expenses){
+  const table = document.getElementById('expensesByCategoryTable');
+  const empty = document.getElementById('expensesByCategoryEmpty');
+  const tbody = document.getElementById('expensesByCategoryTbody');
+  if(!table) return;
+
+  if(expenses.length === 0){
+    table.style.display='none'; empty.style.display='block';
+    return;
+  }
+
+  const byCategory = {};
+  expenses.forEach(e=>{
+    const cat = e.category || 'other';
+    byCategory[cat] = (byCategory[cat]||0) + (e.amount||0);
+  });
+  const totalExpenses = Object.values(byCategory).reduce((s,v)=> s+v, 0);
+  const rows = Object.entries(byCategory).sort((a,b)=> b[1]-a[1]);
+
+  table.style.display='table'; empty.style.display='none';
+  tbody.innerHTML = rows.map(([cat, amount])=>{
+    const pct = totalExpenses > 0 ? Math.round((amount/totalExpenses)*100) : 0;
+    return `<tr>
+      <td>${t('cat_' + cat) || cat}</td>
+      <td>${amount.toFixed(2)}</td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join('');
 }
 
 // Same-period breakdown of revenue by cash/card/wallet — the aggregate view of what
@@ -6979,19 +7124,39 @@ function renderPaymentMethodRevenue(orders){
 // Same period + branch filtering as getReportFilteredOrders(), applied to expenses so the
 // net profit figure reflects the same window the person is looking at.
 function getReportFilteredExpenses(){
-  const days = parseInt(document.getElementById('reportPeriodSelect')?.value || '7');
+  const { from, to } = getReportDateRange();
   const branchId = document.getElementById('reportBranchSelect')?.value || 'all';
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const cutoffKey = cutoff.toISOString().slice(0,10);
+  const fromKey = from.toISOString().slice(0,10);
+  const toKey = to.toISOString().slice(0,10);
 
   return expensesCache.filter(e=>{
-    if(!e.date || e.date < cutoffKey) return false;
+    if(!e.date || e.date < fromKey || e.date > toKey) return false;
     if(branchId !== 'all' && e.branchId !== branchId) return false;
     return true;
   });
 }
 
+// Estimated Cost of Goods Sold for a set of orders: for every line item, looks up the
+// product's CURRENT ingredients+cooking+other cost per unit (same live calculation the
+// Smart Cost Calculator uses) and multiplies by the quantity ordered. This is an
+// approximation for historical orders (ingredient/gas prices may have been different
+// back then — there's no per-order cost snapshot to fall back on), which is why it's
+// labelled "estimated" wherever it's shown.
+function computeOrdersCOGS(orders){
+  let cogs = 0;
+  orders.forEach(o=>{
+    (o.items||[]).forEach(item=>{
+      const product = productsCache.find(p=> p.id === item.productId);
+      if(!product) return;
+      const live = computeLiveProductCost(product);
+      cogs += live.totalCost * (item.qty||0);
+    });
+  });
+  return cogs;
+}
+
+// Buckets by day for short ranges, or by month for long ones (e.g. "هذه السنة" can span
+// up to 12 months) — a year-long chart bucketed by day would be ~365 unreadable slivers.
 function renderRevenueChart(orders){
   const wrap = document.getElementById('revenueChart');
   const empty = document.getElementById('revenueChartEmpty');
@@ -7002,30 +7167,57 @@ function renderRevenueChart(orders){
     return;
   }
 
-  const days = parseInt(document.getElementById('reportPeriodSelect').value);
+  const { from, to } = getReportDateRange();
+  const totalDays = Math.max(1, Math.round((to - from) / (24*60*60*1000)) + 1);
+  const groupByMonth = totalDays > 62;
+
   const buckets = {};
-  for(let i=days-1; i>=0; i--){
-    const d = new Date();
-    d.setDate(d.getDate()-i);
-    const key = d.toISOString().slice(0,10);
-    buckets[key] = 0;
+  const orderedKeys = [];
+
+  if(groupByMonth){
+    const cursor = new Date(from.getFullYear(), from.getMonth(), 1);
+    const end = new Date(to.getFullYear(), to.getMonth(), 1);
+    while(cursor <= end){
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}`;
+      buckets[key] = 0;
+      orderedKeys.push(key);
+      cursor.setMonth(cursor.getMonth()+1);
+    }
+  } else {
+    const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    while(cursor <= end){
+      const key = cursor.toISOString().slice(0,10);
+      buckets[key] = 0;
+      orderedKeys.push(key);
+      cursor.setDate(cursor.getDate()+1);
+    }
   }
+
   orders.forEach(o=>{
     if(!o.createdAt || !o.createdAt.toDate) return;
-    const key = o.createdAt.toDate().toISOString().slice(0,10);
+    const d = o.createdAt.toDate();
+    const key = groupByMonth
+      ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      : d.toISOString().slice(0,10);
     if(key in buckets) buckets[key] += (o.total||0);
   });
 
   const maxVal = Math.max(...Object.values(buckets), 1);
-  const entries = Object.entries(buckets);
-  // For long periods (30/90 days), thin out labels to avoid clutter
-  const labelEvery = days > 30 ? 7 : (days > 14 ? 3 : 1);
+  // For long periods, thin out labels to avoid clutter
+  const labelEvery = orderedKeys.length > 30 ? 7 : (orderedKeys.length > 14 ? 3 : 1);
 
   wrap.style.display='flex'; empty.style.display='none';
-  wrap.innerHTML = entries.map(([key,val], idx)=>{
+  wrap.innerHTML = orderedKeys.map((key, idx)=>{
+    const val = buckets[key];
     const heightPct = Math.max(2, Math.round((val/maxVal)*100));
-    const dateObj = new Date(key);
-    const label = dateObj.toLocaleDateString(currentLang==='ar' ? 'ar-EG' : 'en-US', {day:'numeric', month:'short'});
+    let label;
+    if(groupByMonth){
+      const [y,m] = key.split('-');
+      label = new Date(Number(y), Number(m)-1, 1).toLocaleDateString(currentLang==='ar' ? 'ar-EG' : 'en-US', {month:'short', year:'2-digit'});
+    } else {
+      label = new Date(key).toLocaleDateString(currentLang==='ar' ? 'ar-EG' : 'en-US', {day:'numeric', month:'short'});
+    }
     const showLabel = idx % labelEvery === 0;
     return `<div class="chart-bar-col">
       ${val > 0 ? `<span class="chart-bar-value">${val.toFixed(0)}</span>` : ''}
