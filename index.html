@@ -261,6 +261,22 @@
   .cost-summary .cs-line.profit{color:var(--ok); font-weight:700;}
   .cost-summary .cs-line.loss{color:var(--danger); font-weight:700;}
 
+  /* Smart Cost Calculator */
+  .filter-bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px;}
+  .filter-bar input[type="text"], .filter-bar select{padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--card);}
+  .filter-bar input[type="text"]{flex:1; min-width:180px;}
+  .cc-threshold{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .cc-threshold input{width:56px; padding:7px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px;}
+  #ccTable tr.cc-row-loss{background:#fef2f2;}
+  #ccTable tr.cc-row-warn{background:#fffbeb;}
+  #ccTable .cc-margin{font-weight:700; padding:3px 10px; border-radius:20px; font-size:11px; display:inline-block;}
+  #ccTable .cc-margin.good{background:#dcfce7; color:var(--ok);}
+  #ccTable .cc-margin.warn{background:#fef3c7; color:#b45309;}
+  #ccTable .cc-margin.loss{background:#fee2e2; color:var(--danger);}
+  #ccTable .cc-alert-badge{font-size:11px; color:#b45309; font-weight:600; display:inline-flex; align-items:center; gap:4px;}
+  #ccTable tbody tr{cursor:pointer;}
+  #ccTable tbody tr:hover{filter:brightness(0.97);}
+
   .po-status-badge{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;}
   .po-status-draft{background:#f3f4f6; color:#6b7280;}
   .po-status-sent{background:#dbeafe; color:#1e40af;}
@@ -344,6 +360,9 @@
     </div>
     <div class="nav-item" data-module="inventory" onclick="showModule('inventory')">
       <span class="nav-icon">📦</span><span data-i18n="nav_inventory">المخزون والتكاليف</span>
+    </div>
+    <div class="nav-item" data-module="costCalculator" onclick="showModule('costCalculator')">
+      <span class="nav-icon">🧮</span><span data-i18n="nav_costCalculator">حاسبة التكلفة الذكية</span>
     </div>
     <div class="nav-item" data-module="delivery" onclick="showModule('delivery')">
       <span class="nav-icon">🛵</span><span data-i18n="nav_delivery">الدليفري</span>
@@ -890,6 +909,63 @@
               <tbody id="expensesTbody"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Smart Cooking Cost Calculator Module: live per-product cost/profit/margin
+         across ALL products, recomputed from CURRENT ingredient prices (not just the
+         cost snapshot stored on the product from its last save) — so price rises in
+         inventory surface immediately as shrinking margins here. -->
+    <div id="module-costCalculator" class="module-content" style="display:none;">
+      <div class="cards-grid" id="ccSummaryCards"></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3 data-i18n="ccTitle">تكلفة وربحية كل المنتجات</h3>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="printTable('ccTable', t('ccTitle'))" data-i18n="print">طباعة</button>
+            <button class="btn btn-outline" onclick="exportTableToExcel('ccTable', t('ccTitle'))" data-i18n="exportExcel">تصدير Excel</button>
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin:-8px 0 16px;" data-i18n="ccDesc">التكلفة هنا بتتحسب لحظيًا بأسعار المكونات الحالية من المخزون، مش بس آخر سعر اتحفظ وقت إضافة المنتج — عشان كده لو سعر مكوّن ارتفع هتشوف الأثر على هامش الربح فورًا هنا حتى لو محدّش فتح المنتج ده تاني.</p>
+        <div class="filter-bar">
+          <input type="text" id="ccSearchInput" oninput="renderCostCalculator()" placeholder="بحث باسم المنتج...">
+          <select id="ccCategoryFilter" onchange="renderCostCalculator()"></select>
+          <select id="ccSortSelect" onchange="renderCostCalculator()">
+            <option value="marginAsc" data-i18n="ccSortMarginAsc">الأسوأ هامشًا أولًا</option>
+            <option value="marginDesc" data-i18n="ccSortMarginDesc">الأفضل هامشًا أولًا</option>
+            <option value="costDesc" data-i18n="ccSortCostDesc">الأعلى تكلفة</option>
+            <option value="nameAsc" data-i18n="ccSortNameAsc">الاسم</option>
+          </select>
+          <div class="cc-threshold">
+            <label data-i18n="ccThresholdLabel">تنبيه لو الهامش أقل من</label>
+            <input type="number" id="ccMarginThreshold" value="20" min="0" max="100" step="1" oninput="renderCostCalculator()">
+            <span>%</span>
+          </div>
+        </div>
+        <div id="ccTableWrap">
+          <div class="empty-state" id="ccEmpty">
+            <div class="icon">🧮</div>
+            <p data-i18n="noProductsYet">لا توجد منتجات بعد</p>
+          </div>
+          <table id="ccTable" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="colName">المنتج</th>
+                <th data-i18n="colCategory">التصنيف</th>
+                <th data-i18n="colPrice">السعر</th>
+                <th data-i18n="ingredientsCost">تكلفة المكونات</th>
+                <th data-i18n="laborCost">العمالة</th>
+                <th data-i18n="otherCosts">تكاليف أخرى</th>
+                <th data-i18n="totalCost">إجمالي التكلفة</th>
+                <th data-i18n="expectedProfit">الربح</th>
+                <th data-i18n="profitMargin">الهامش</th>
+                <th data-i18n="ccAlert">تنبيه</th>
+              </tr>
+            </thead>
+            <tbody id="ccTbody"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -2303,6 +2379,17 @@ const translations = {
     notifSent:"تم إرسال الإشعار", notifFillRequired:"من فضلك أكمل العنوان والنص",
     justNow:"الآن", minutesAgo:"دقيقة", hoursAgo:"ساعة", daysAgo:"يوم",
     nav_inventory:"المخزون والتكاليف",
+    nav_costCalculator:"حاسبة التكلفة الذكية",
+    ccTitle:"تكلفة وربحية كل المنتجات",
+    ccDesc:"التكلفة هنا بتتحسب لحظيًا بأسعار المكونات الحالية من المخزون، مش بس آخر سعر اتحفظ وقت إضافة المنتج — عشان كده لو سعر مكوّن ارتفع هتشوف الأثر على هامش الربح فورًا هنا حتى لو محدّش فتح المنتج ده تاني.",
+    ccSearchPlaceholder:"بحث باسم المنتج...",
+    ccSortMarginAsc:"الأسوأ هامشًا أولًا", ccSortMarginDesc:"الأفضل هامشًا أولًا",
+    ccSortCostDesc:"الأعلى تكلفة", ccSortNameAsc:"الاسم",
+    ccThresholdLabel:"تنبيه لو الهامش أقل من", ccAlert:"تنبيه",
+    ccStatProducts:"عدد المنتجات", ccStatAvgMargin:"متوسط هامش الربح",
+    ccStatLoss:"منتجات بخسارة", ccStatLowMargin:"منتجات بهامش منخفض",
+    ccStatRisingCost:"تكلفتها ارتفعت عن آخر حفظ",
+    ccMissingIngredient:"مكوّن محذوف من المخزون", ccCostRoseSinceLastSave:"ارتفاع في تكلفة المكونات عن آخر حفظ",
     tabIngredients:"المكونات والمخزون", tabSuppliers:"الموردين", tabPurchaseOrders:"أوامر الشراء",
     ingredientList:"قائمة المكونات", addIngredient:"+ إضافة مكوّن", noIngredientsYet:"لا توجد مكونات بعد",
     colUnit:"الوحدة", colCostPerUnit:"تكلفة الوحدة", colCurrentStock:"المخزون الحالي",
@@ -2559,6 +2646,17 @@ const translations = {
     notifSent:"Notification sent", notifFillRequired:"Please fill in title and body",
     justNow:"Just now", minutesAgo:"min ago", hoursAgo:"hr ago", daysAgo:"days ago",
     nav_inventory:"Inventory & Costs",
+    nav_costCalculator:"Smart Cost Calculator",
+    ccTitle:"Cost & Profitability of All Products",
+    ccDesc:"Costs here are calculated live from the CURRENT ingredient prices in inventory, not just the price saved when the product was last edited — so if an ingredient's price rises, you'll see the effect on margin here right away, even for products nobody has reopened.",
+    ccSearchPlaceholder:"Search by product name...",
+    ccSortMarginAsc:"Worst margin first", ccSortMarginDesc:"Best margin first",
+    ccSortCostDesc:"Highest cost", ccSortNameAsc:"Name",
+    ccThresholdLabel:"Flag if margin is below", ccAlert:"Alert",
+    ccStatProducts:"Total Products", ccStatAvgMargin:"Average Margin",
+    ccStatLoss:"Products at a Loss", ccStatLowMargin:"Low-Margin Products",
+    ccStatRisingCost:"Cost Rose Since Last Save",
+    ccMissingIngredient:"An ingredient was removed from inventory", ccCostRoseSinceLastSave:"ingredient cost increase since last save",
     tabIngredients:"Ingredients & Stock", tabSuppliers:"Suppliers", tabPurchaseOrders:"Purchase Orders",
     ingredientList:"Ingredients List", addIngredient:"+ Add Ingredient", noIngredientsYet:"No ingredients yet",
     colUnit:"Unit", colCostPerUnit:"Cost/Unit", colCurrentStock:"Current Stock",
@@ -2755,6 +2853,8 @@ function toggleLang(){
   renderLowStockBanner();
   renderSuppliersTable();
   renderPOTable();
+  populateCcCategoryFilter();
+  renderCostCalculator();
 }
 
 function t(key){ return translations[currentLang][key] || key; }
@@ -2864,6 +2964,7 @@ function showModule(name){
   if(name === 'dashboard'){ updateDashboardStats(); loadActivityLog(); }
   if(name === 'reports') renderReports();
   if(name === 'inventory'){ renderLowStockBanner(); renderStockAvailabilityReport(); }
+  if(name === 'costCalculator'){ populateCcCategoryFilter(); renderCostCalculator(); }
   if(name === 'settings'){ renderMenuQrSection(); renderOrderPageQrSection(); loadPublicSettingsForm(); }
   if(name === 'whatsappLog') loadWhatsappMessagesLog();
   if(name === 'customers') renderCustomersTable();
@@ -7303,6 +7404,150 @@ function updateProductCostSummary(){
   profitEl.textContent = profit.toFixed(2);
   profitLine.className = 'cs-line ' + (profit >= 0 ? 'profit' : 'loss');
   document.getElementById('csMargin').textContent = margin.toFixed(0) + '%';
+}
+
+/* ---------- Smart Cooking Cost Calculator (all products, live ingredient prices) ----------
+   Unlike the per-product cost summary in the product modal (which only reflects prices at
+   the moment the product form is open), this recomputes every product's ingredient cost
+   right now from ingredientsCache — so a supplier price hike shows up here immediately,
+   even for products nobody has re-opened since. */
+
+// Computes { ingredientsCost, totalCost, profit, margin, missingIngredient, storedTotalCost, costDeltaPct }
+// for a single product using CURRENT ingredient prices.
+function computeLiveProductCost(p){
+  const bom = p.bom || {};
+  let ingredientsCost = 0;
+  let missingIngredient = false;
+  Object.entries(bom).forEach(([ingId, qty])=>{
+    const ing = ingredientsCache.find(x=> x.id === ingId);
+    if(ing){ ingredientsCost += (ing.costPerUnit||0) * qty; }
+    else { missingIngredient = true; }
+  });
+  const laborCost = Number(p.laborCost||0);
+  const otherCosts = Number(p.otherCosts||0);
+  const totalCost = ingredientsCost + laborCost + otherCosts;
+  const price = Number(p.price||0);
+  const profit = price - totalCost;
+  const margin = price > 0 ? (profit/price)*100 : 0;
+  const storedTotalCost = p.totalCost !== undefined && p.totalCost !== null ? Number(p.totalCost) : null;
+  const costDeltaPct = (storedTotalCost && storedTotalCost > 0) ? ((totalCost - storedTotalCost)/storedTotalCost)*100 : 0;
+  return { ingredientsCost, laborCost, otherCosts, totalCost, price, profit, margin, missingIngredient, storedTotalCost, costDeltaPct };
+}
+
+function populateCcCategoryFilter(){
+  const sel = document.getElementById('ccCategoryFilter');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="all">${t('allCategories')}</option>` +
+    categoriesCache.map(c=> `<option value="${c.id}">${escapeHtml(categoryDisplayName(c))}</option>`).join('');
+  if(current && [...sel.options].some(o=> o.value === current)) sel.value = current;
+}
+
+function renderCostCalculator(){
+  const tbody = document.getElementById('ccTbody');
+  const table = document.getElementById('ccTable');
+  const empty = document.getElementById('ccEmpty');
+  const cardsWrap = document.getElementById('ccSummaryCards');
+  if(!tbody || !table) return;
+
+  if(productsCache.length === 0){
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    cardsWrap.innerHTML = '';
+    return;
+  }
+
+  const searchTerm = (document.getElementById('ccSearchInput')?.value || '').trim().toLowerCase();
+  const categoryFilter = document.getElementById('ccCategoryFilter')?.value || 'all';
+  const sortMode = document.getElementById('ccSortSelect')?.value || 'marginAsc';
+  const marginThreshold = Math.max(0, parseFloat(document.getElementById('ccMarginThreshold')?.value) || 0);
+
+  // Compute live figures for every product once, then filter/sort/render.
+  let rows = productsCache.map(p=>{
+    const name = currentLang==='ar' ? (p.name_ar||p.name_en) : (p.name_en||p.name_ar);
+    const cat = categoriesCache.find(c=> c.id === p.categoryId);
+    const catName = cat ? categoryDisplayName(cat) : '';
+    return { p, name, catName, live: computeLiveProductCost(p) };
+  });
+
+  if(searchTerm){
+    rows = rows.filter(r=> (r.name||'').toLowerCase().includes(searchTerm));
+  }
+  if(categoryFilter !== 'all'){
+    rows = rows.filter(r=> r.p.categoryId === categoryFilter);
+  }
+
+  // Summary cards computed on the filtered set so they reflect what's actually shown.
+  const withPrice = rows.filter(r=> r.live.price > 0);
+  const avgMargin = withPrice.length ? (withPrice.reduce((s,r)=> s+r.live.margin, 0) / withPrice.length) : 0;
+  const lossCount = rows.filter(r=> r.live.profit < 0).length;
+  const warnCount = rows.filter(r=> r.live.profit >= 0 && r.live.margin < marginThreshold).length;
+  const risingCostCount = rows.filter(r=> r.live.costDeltaPct > 5).length;
+  cardsWrap.innerHTML = `
+    <div class="stat-card">
+      <div class="label">${t('ccStatProducts')}</div>
+      <div class="value">${rows.length}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${t('ccStatAvgMargin')}</div>
+      <div class="value" style="color:${avgMargin>=marginThreshold?'var(--ok)':'#b45309'};">${avgMargin.toFixed(0)}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${t('ccStatLoss')}</div>
+      <div class="value" style="color:${lossCount>0?'var(--danger)':'inherit'};">${lossCount}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${t('ccStatLowMargin')}</div>
+      <div class="value" style="color:${warnCount>0?'#b45309':'inherit'};">${warnCount}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">${t('ccStatRisingCost')}</div>
+      <div class="value" style="color:${risingCostCount>0?'#b45309':'inherit'};">${risingCostCount}</div>
+    </div>
+  `;
+
+  // Sort (applied after computing summary stats, which shouldn't depend on order).
+  rows.sort((a,b)=>{
+    if(sortMode === 'marginAsc') return a.live.margin - b.live.margin;
+    if(sortMode === 'marginDesc') return b.live.margin - a.live.margin;
+    if(sortMode === 'costDesc') return b.live.totalCost - a.live.totalCost;
+    if(sortMode === 'nameAsc') return (a.name||'').localeCompare(b.name||'');
+    return 0;
+  });
+
+  if(rows.length === 0){
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(r=>{
+    const { p, name, catName, live } = r;
+    const rowClass = live.profit < 0 ? 'cc-row-loss' : (live.margin < marginThreshold ? 'cc-row-warn' : '');
+    const marginClass = live.profit < 0 ? 'loss' : (live.margin < marginThreshold ? 'warn' : 'good');
+    let alertHtml = '';
+    if(live.missingIngredient){
+      alertHtml += `<span class="cc-alert-badge">⚠️ ${t('ccMissingIngredient')}</span><br>`;
+    }
+    if(live.costDeltaPct > 5){
+      alertHtml += `<span class="cc-alert-badge">📈 +${live.costDeltaPct.toFixed(0)}% ${t('ccCostRoseSinceLastSave')}</span>`;
+    }
+    if(!alertHtml) alertHtml = '<span style="color:var(--muted);">—</span>';
+    return `<tr class="${rowClass}" onclick="openProductModal('${p.id}')">
+      <td>${escapeHtml(name||'')}</td>
+      <td>${escapeHtml(catName)}</td>
+      <td>${live.price.toFixed(2)}</td>
+      <td>${live.ingredientsCost.toFixed(2)}</td>
+      <td>${live.laborCost.toFixed(2)}</td>
+      <td>${live.otherCosts.toFixed(2)}</td>
+      <td>${live.totalCost.toFixed(2)}</td>
+      <td style="color:${live.profit>=0?'var(--ok)':'var(--danger)'}; font-weight:600;">${live.profit.toFixed(2)}</td>
+      <td><span class="cc-margin ${marginClass}">${live.margin.toFixed(0)}%</span></td>
+      <td>${alertHtml}</td>
+    </tr>`;
+  }).join('');
 }
 
 /* ---------- Suppliers (Firestore: restaurants/{rid}/suppliers/{supplierId}) ---------- */
