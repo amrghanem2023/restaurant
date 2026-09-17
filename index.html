@@ -926,6 +926,7 @@
             <table id="poTable" style="display:none;">
               <thead>
                 <tr>
+                  <th data-i18n="colBranch">الفرع</th>
                   <th data-i18n="colSupplier">المورد</th>
                   <th data-i18n="colItemsCount">عدد الأصناف</th>
                   <th data-i18n="colTotal">الإجمالي</th>
@@ -956,6 +957,7 @@
             </select>
             <select id="expenseCategoryFilter" onchange="renderExpensesTable()">
               <option value="all" data-i18n="allCategories">كل الفئات</option>
+              <option value="purchases" data-i18n="cat_purchases">مشتريات مخزون</option>
               <option value="electricity" data-i18n="cat_electricity">كهرباء</option>
               <option value="salaries" data-i18n="cat_salaries">مرتبات</option>
               <option value="taxes" data-i18n="cat_taxes">ضرائب</option>
@@ -1976,6 +1978,7 @@
     <div class="field">
       <label data-i18n="colCategory">الفئة</label>
       <select id="expenseCategoryInput">
+        <option value="purchases" data-i18n="cat_purchases">مشتريات مخزون</option>
         <option value="electricity" data-i18n="cat_electricity">كهرباء</option>
         <option value="salaries" data-i18n="cat_salaries">مرتبات</option>
         <option value="taxes" data-i18n="cat_taxes">ضرائب</option>
@@ -2343,6 +2346,10 @@
   <div class="modal" style="max-width:460px;">
     <h3 data-i18n="addPO">أمر شراء جديد</h3>
     <div class="field">
+      <label data-i18n="colBranch">الفرع</label>
+      <select id="poBranchInput"></select>
+    </div>
+    <div class="field">
       <label data-i18n="colSupplier">المورد</label>
       <select id="poSupplierInput"></select>
     </div>
@@ -2637,7 +2644,8 @@ const translations = {
     tabExpenses:"المصروفات العامة", expenseList:"المصروفات العامة", addExpense:"+ إضافة مصروف", editExpense:"تعديل مصروف",
     colCategory:"الفئة", colAmount:"المبلغ", colDate:"التاريخ", colNotes:"ملاحظات",
     allCategories:"كل الفئات",
-    cat_electricity:"كهرباء", cat_salaries:"مرتبات", cat_taxes:"ضرائب", cat_rent:"إيجار", cat_maintenance:"صيانة", cat_other:"أخرى",
+    cat_purchases:"مشتريات مخزون", cat_electricity:"كهرباء", cat_salaries:"مرتبات", cat_taxes:"ضرائب", cat_rent:"إيجار", cat_maintenance:"صيانة", cat_other:"أخرى",
+    poAutoExpenseNote:"شراء مكونات (أمر شراء)", poNoBranchForExpense:"تم استلام الأمر وتحديث المخزون، لكن لم يُسجَّل كمصروف لعدم تحديد فرع لهذا الأمر (أضِفه يدويًا من تبويب المصروفات)",
     noExpensesYet:"لا توجد مصروفات مسجّلة بعد", expenseSaved:"تم حفظ المصروف", expenseDeleted:"تم حذف المصروف",
     selectBranchFirst:"اختر الفرع أولاً",
     totalExpenses:"إجمالي المصاريف", netProfit:"صافي الربح",
@@ -2953,7 +2961,8 @@ const translations = {
     tabExpenses:"General Expenses", expenseList:"General Expenses", addExpense:"+ Add Expense", editExpense:"Edit Expense",
     colCategory:"Category", colAmount:"Amount", colDate:"Date", colNotes:"Notes",
     allCategories:"All Categories",
-    cat_electricity:"Electricity", cat_salaries:"Salaries", cat_taxes:"Taxes", cat_rent:"Rent", cat_maintenance:"Maintenance", cat_other:"Other",
+    cat_purchases:"Inventory Purchases", cat_electricity:"Electricity", cat_salaries:"Salaries", cat_taxes:"Taxes", cat_rent:"Rent", cat_maintenance:"Maintenance", cat_other:"Other",
+    poAutoExpenseNote:"Ingredient purchase (Purchase Order)", poNoBranchForExpense:"Order received and stock updated, but no expense was logged since this PO has no branch selected (add it manually from the Expenses tab)",
     noExpensesYet:"No expenses recorded yet", expenseSaved:"Expense saved", expenseDeleted:"Expense deleted",
     selectBranchFirst:"Select a branch first",
     totalExpenses:"Total Expenses", netProfit:"Net Profit",
@@ -8623,6 +8632,7 @@ function renderPOTable(){
       actionsHtml = `<button onclick="updatePOStatus('${po.id}','received')" title="${t('markReceived')}">✅</button>` + actionsHtml;
     }
     return `<tr>
+      <td>${escapeHtml(branchNameById(po.branchId))}</td>
       <td>${escapeHtml(supplier ? supplier.name : '—')}</td>
       <td>${(po.items||[]).length}</td>
       <td>${Number(po.total||0).toFixed(2)}</td>
@@ -8643,6 +8653,9 @@ function openPOModal(prefillShortage){
       poItemsSelection[ing.id] = needed;
     });
   }
+
+  const branchSel = document.getElementById('poBranchInput');
+  branchSel.innerHTML = selectableBranches().map(b=> `<option value="${b.id}">${escapeHtml(b.name||'')}</option>`).join('');
 
   const supplierSel = document.getElementById('poSupplierInput');
   supplierSel.innerHTML = suppliersCache.map(s=> `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
@@ -8696,7 +8709,9 @@ function updatePOTotalDisplay(){
 }
 
 async function savePO(){
+  const branchId = document.getElementById('poBranchInput').value;
   const supplierId = document.getElementById('poSupplierInput').value;
+  if(!branchId){ showToast(t('selectBranchFirst')); return; }
   const entries = Object.entries(poItemsSelection);
   if(entries.length === 0){
     showToast(t('selectAtLeastOne'));
@@ -8712,7 +8727,7 @@ async function savePO(){
   btn.disabled = true;
   try{
     await poCol().add({
-      supplierId, items, total, status:'draft',
+      branchId, supplierId, items, total, status:'draft',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     closePOModal();
@@ -8743,6 +8758,28 @@ async function updatePOStatus(poId, newStatus){
       });
       await batch.commit();
       await loadIngredients();
+
+      // Auto-log the purchase as a general expense (category "purchases"), once per PO,
+      // so the money actually spent shows up in "المصروفات العامة" and net profit
+      // right away — instead of only surfacing gradually through COGS as ingredients
+      // get used in sold products. `expenseCreated` guards against duplicate entries
+      // if a PO's status is ever toggled back and forth.
+      if(!po.expenseCreated && po.branchId){
+        const supplier = suppliersCache.find(s=> s.id === po.supplierId);
+        await expensesCol().add({
+          branchId: po.branchId,
+          category: 'purchases',
+          amount: po.total || 0,
+          date: new Date().toISOString().slice(0,10),
+          notes: `${t('poAutoExpenseNote')}${supplier ? ' — ' + supplier.name : ''}`,
+          relatedPOId: poId,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await poCol().doc(poId).update({ expenseCreated:true });
+        await loadExpenses();
+      } else if(!po.branchId){
+        showToast(t('poNoBranchForExpense'));
+      }
       showToast(t('poReceivedStockUpdated'));
     }
     await loadPurchaseOrders();
