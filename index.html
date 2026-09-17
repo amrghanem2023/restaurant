@@ -29,6 +29,13 @@
   .lang-switch{position:fixed; top:16px; inset-inline-end:16px; z-index:50;}
   .lang-switch button{background:var(--card); border:1px solid var(--border); padding:8px 14px; border-radius:20px; cursor:pointer; font-size:13px;}
 
+  .guest-divider{display:flex; align-items:center; gap:10px; margin:16px 0; color:var(--muted); font-size:12px;}
+  .guest-divider:before, .guest-divider:after{content:""; flex:1; height:1px; background:var(--border);}
+  .guest-hint{font-size:11px; color:var(--muted); text-align:center; margin-top:10px; line-height:1.6;}
+
+  .guest-trial-banner{background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:10px 16px; border-radius:8px; font-size:13px; margin-bottom:16px; display:none; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+  .guest-trial-banner strong{font-weight:700;}
+
   /* ---------- App Shell ---------- */
   #appShell{display:none; min-height:100vh; grid-template-columns:250px 1fr;}
   #appShell.active{display:grid;}
@@ -329,6 +336,9 @@
       <input type="password" id="loginPassword" placeholder="••••••••">
     </div>
     <button class="btn btn-block" id="loginBtn" onclick="doLogin()" data-i18n="loginBtn">دخول</button>
+    <div class="guest-divider"><span data-i18n="orDivider">أو</span></div>
+    <button class="btn btn-outline btn-block" id="guestLoginBtn" onclick="doGuestLogin()" data-i18n="guestLoginBtn">دخول كضيف (تجربة 14 يوم)</button>
+    <p class="guest-hint" data-i18n="guestHint">بيانات وضع الضيف مؤقتة ومرتبطة بهذا الجهاز/المتصفح فقط، وتُحذف تلقائيًا بعد انتهاء المدة</p>
   </div>
 </div>
 
@@ -398,6 +408,9 @@
   </aside>
 
   <main class="main">
+    <div id="guestTrialBanner" class="guest-trial-banner">
+      <span id="guestTrialBannerText"></span>
+    </div>
     <div class="topbar">
       <h1 id="moduleTitle" data-i18n="nav_dashboard">لوحة التحكم</h1>
       <select class="branch-select" id="branchFilter" onchange="onBranchFilterChange()">
@@ -2486,6 +2499,11 @@ const translations = {
     fillRequired:"من فضلك أكمل الحقول المطلوبة", branchSaved:"تم حفظ الفرع بنجاح",
     branchDeleted:"تم حذف الفرع", confirmDelete:"هل أنت متأكد من الحذف؟",
     loginFailed:"فشل تسجيل الدخول — تحقق من البيانات",
+    orDivider:"أو", guestLoginBtn:"دخول كضيف (تجربة 14 يوم)",
+    guestHint:"بيانات وضع الضيف مؤقتة ومرتبطة بهذا الجهاز/المتصفح فقط، وتُحذف تلقائيًا بعد انتهاء المدة",
+    guestModeLabel:"ضيف (وضع تجريبي)",
+    guestBannerText:"🎁 أنت في وضع الضيف التجريبي — متبقٍ {days} يوم قبل انتهاء الفترة (14 يوم)",
+    guestTrialExpired:"انتهت فترة التجربة المجانية (14 يوم). يرجى إنشاء حساب دائم أو التواصل معنا للاستمرار.",
     tabProducts:"المنتجات", tabCategories:"التصنيفات",
     productList:"قائمة المنتجات", addProduct:"+ إضافة منتج", noProductsYet:"لا توجد منتجات بعد",
     categoryList:"قائمة التصنيفات", addCategory:"+ إضافة تصنيف", noCategoriesYet:"لا توجد تصنيفات بعد",
@@ -2797,6 +2815,11 @@ const translations = {
     fillRequired:"Please fill required fields", branchSaved:"Branch saved successfully",
     branchDeleted:"Branch deleted", confirmDelete:"Are you sure you want to delete?",
     loginFailed:"Login failed — check your credentials",
+    orDivider:"or", guestLoginBtn:"Continue as Guest (14-day trial)",
+    guestHint:"Guest data is temporary and tied to this device/browser only — it's automatically removed after the trial ends",
+    guestModeLabel:"Guest (Trial)",
+    guestBannerText:"🎁 You're in Guest Trial mode — {days} day(s) left of your 14-day trial",
+    guestTrialExpired:"Your 14-day free trial has ended. Please create a permanent account or contact us to continue.",
     tabProducts:"Products", tabCategories:"Categories",
     productList:"Products List", addProduct:"+ Add Product", noProductsYet:"No products yet",
     categoryList:"Categories List", addCategory:"+ Add Category", noCategoriesYet:"No categories yet",
@@ -3161,6 +3184,73 @@ function doLogout(){
   auth.signOut();
 }
 
+/* ---------- Guest (anonymous) trial login ----------
+   Uses Firebase Anonymous Auth so a guest gets a real uid and the exact same
+   multi-tenant data model (restaurants/{uid}/...) as a normal account — no
+   separate code paths needed anywhere else in the app. The trial start date is
+   stored on the guest's own restaurant root doc, so it survives page reloads
+   on the same device/browser (Firebase Auth persists the anonymous session)
+   but resets if the browser storage is cleared or the trial is used on
+   another device — that's expected for a guest trial. Requires "Anonymous"
+   to be enabled under Firebase Console → Authentication → Sign-in method. */
+const GUEST_TRIAL_DAYS = 14;
+
+function doGuestLogin(){
+  const errBox = document.getElementById('loginError');
+  const btn = document.getElementById('guestLoginBtn');
+  errBox.style.display = 'none';
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = t('loggingIn');
+  auth.signInAnonymously()
+    .catch(err=>{
+      errBox.textContent = t('loginFailed') + ' (' + err.code + ')';
+      errBox.style.display = 'block';
+    })
+    .finally(()=>{
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
+}
+
+// Reads (or, on first run, creates) the guest's trial start date.
+// Stored under restaurants/{uid}/settings/guestTrial (same subcollection pattern as
+// costSettings/publicSettings) rather than on the restaurants/{uid} root document —
+// the root document itself has no matching allow rule in Firestore rules (only
+// subcollections do via the catch-all `/{document=**}` rule), so writing there
+// would always fail with permission-denied.
+async function ensureGuestTrial(uid){
+  const ref = db.collection('restaurants').doc(uid).collection('settings').doc('guestTrial');
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : {};
+  let startMs;
+  if(data.guestTrialStart){
+    startMs = data.guestTrialStart.toMillis ? data.guestTrialStart.toMillis() : new Date(data.guestTrialStart).getTime();
+  } else {
+    startMs = Date.now();
+    await ref.set({
+      isGuest: true,
+      guestTrialStart: firebase.firestore.Timestamp.fromMillis(startMs)
+    }, { merge:true });
+  }
+  const daysPassed = (Date.now() - startMs) / (1000*60*60*24);
+  const daysLeft = Math.max(0, Math.ceil(GUEST_TRIAL_DAYS - daysPassed));
+  return { expired: daysPassed >= GUEST_TRIAL_DAYS, daysLeft };
+}
+
+function renderGuestTrialBanner(daysLeft){
+  const banner = document.getElementById('guestTrialBanner');
+  const textEl = document.getElementById('guestTrialBannerText');
+  if(!banner || !textEl) return;
+  textEl.textContent = t('guestBannerText').replace('{days}', daysLeft);
+  banner.style.display = 'flex';
+}
+
+function hideGuestTrialBanner(){
+  const banner = document.getElementById('guestTrialBanner');
+  if(banner) banner.style.display = 'none';
+}
+
 // If the page was opened via a table QR code (?menu=<restaurantId>&branch=<branchId>),
 // show the public read-only customer menu instead of the staff login/app — no
 // authentication involved, so this works for any customer scanning the code.
@@ -3172,13 +3262,28 @@ if(publicMenuRestaurantId){
 } else {
   auth.onAuthStateChanged(async (user)=>{
   if(user){
+    // Guests (anonymous auth) get the exact same account shape as a real owner,
+    // but capped to a 14-day trial window checked against their own restaurant doc.
+    if(user.isAnonymous){
+      const trial = await ensureGuestTrial(user.uid);
+      if(trial.expired){
+        await auth.signOut();
+        const errBox = document.getElementById('loginError');
+        errBox.textContent = t('guestTrialExpired');
+        errBox.style.display = 'block';
+        return; // onAuthStateChanged fires again with user=null and shows the login screen
+      }
+      renderGuestTrialBanner(trial.daysLeft);
+    } else {
+      hideGuestTrialBanner();
+    }
     currentUser = user;
     // Each restaurant owner document is keyed by their UID at /restaurants/{uid}
     // This is the multi-tenant root. Branches/menu/orders/staff live as subcollections under it.
     currentRestaurantId = user.uid;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appShell').classList.add('active');
-    document.getElementById('restaurantNameLabel').textContent = user.email;
+    document.getElementById('restaurantNameLabel').textContent = user.isAnonymous ? t('guestModeLabel') : user.email;
     await loadBranches();
     await loadCategories();
     await loadProducts();
@@ -3211,6 +3316,7 @@ if(publicMenuRestaurantId){
     currentRestaurantId = null;
     if(ordersUnsubscribe){ ordersUnsubscribe(); ordersUnsubscribe = null; }
     ordersCache = [];
+    hideGuestTrialBanner();
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('appShell').classList.remove('active');
   }
