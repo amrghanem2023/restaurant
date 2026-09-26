@@ -1060,7 +1060,10 @@
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="zoneList">مناطق التوصيل</h3>
-            <button class="btn" onclick="openDeliveryZoneModal()" data-i18n="addZone">+ إضافة منطقة</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-outline" id="importCairoZonesBtn" onclick="importGreaterCairoZones()" data-i18n="importCairoZones">📥 استيراد مناطق القاهرة الكبرى</button>
+              <button class="btn" onclick="openDeliveryZoneModal()" data-i18n="addZone">+ إضافة منطقة</button>
+            </div>
           </div>
           <div id="zonesTableWrap">
             <div class="empty-state" id="zonesEmpty">
@@ -2710,6 +2713,8 @@ const translations = {
     noActiveDeliveries:"لا يوجد طلبات دليفري جارية حاليًا", showAll:"عرض الكل",
     zoneList:"مناطق التوصيل", addZone:"+ إضافة منطقة", editZone:"تعديل منطقة", noZonesYet:"لا توجد مناطق توصيل بعد",
     zoneSaved:"تم حفظ المنطقة", zoneDeleted:"تم حذف المنطقة",
+    importCairoZones:"📥 استيراد مناطق القاهرة الكبرى", importingZones:"جاري استيراد المناطق...",
+    cairoZonesImported:"تم استيراد المناطق بنجاح، عدّل رسوم التوصيل حسب الحاجة", cairoZonesConfirm:"هيتم إضافة مناطق القاهرة والجيزة الكبرى برسوم توصيل 0 ج.م (تقدر تعدلها بعدين). متابعة؟",
     driverList:"قائمة السائقين", addDriver:"+ إضافة سائق", editDriver:"تعديل سائق", noDriversYet:"لا يوجد سائقين بعد",
     driverActive:"نشط", driverInactive:"غير نشط", driverSaved:"تم حفظ السائق", driverDeleted:"تم حذف السائق",
     deliveryAddress:"عنوان التوصيل", deliveryZone:"منطقة التوصيل", deliveryFee:"رسوم التوصيل",
@@ -3027,6 +3032,8 @@ const translations = {
     noActiveDeliveries:"No active deliveries right now", showAll:"Show All",
     zoneList:"Delivery Zones", addZone:"+ Add Zone", editZone:"Edit Zone", noZonesYet:"No delivery zones yet",
     zoneSaved:"Zone saved", zoneDeleted:"Zone deleted",
+    importCairoZones:"📥 Import Greater Cairo Areas", importingZones:"Importing zones...",
+    cairoZonesImported:"Zones imported — adjust delivery fees as needed", cairoZonesConfirm:"This will add Greater Cairo & Giza areas with a 0 EGP delivery fee (editable later). Continue?",
     driverList:"Drivers", addDriver:"+ Add Driver", editDriver:"Edit Driver", noDriversYet:"No drivers yet",
     driverActive:"Active", driverInactive:"Inactive", driverSaved:"Driver saved", driverDeleted:"Driver deleted",
     deliveryAddress:"Delivery Address", deliveryZone:"Delivery Zone", deliveryFee:"Delivery Fee",
@@ -5125,6 +5132,51 @@ async function deleteDeliveryZone(zoneId){
   }catch(e){
     console.error('deleteDeliveryZone error', e);
     showToast(e.message);
+  }
+}
+
+/* Predefined list of Greater Cairo (Cairo + Giza + Qalyubiya new cities) neighborhoods,
+   used to bulk-seed the delivery zones list so the restaurant doesn't have to add each
+   area one by one. Fees default to 0 and can be edited per zone afterwards. */
+const GREATER_CAIRO_ZONES = [
+  "وسط البلد", "مصر الجديدة", "مدينة نصر", "الزمالك", "جاردن سيتي",
+  "المعادي", "المعادي الجديدة", "دار السلام", "البساتين", "المقطم", "حدائق المعادي",
+  "مصر القديمة", "السيدة زينب", "عابدين", "الدرب الأحمر", "الأزهر",
+  "شبرا", "شبرا الخيمة", "روض الفرج", "الساحل", "الزيتون", "حدائق القبة", "عين شمس",
+  "المطرية", "المرج", "الوايلي", "الظاهر", "الأميرية", "المنيل", "السيدة عائشة",
+  "منشية ناصر", "التبين", "حلوان", "المعصرة", "15 مايو", "النزهة", "الحي العاشر",
+  "التجمع الأول", "التجمع الثالث", "التجمع الخامس", "القاهرة الجديدة", "الرحاب",
+  "مدينتي", "الشروق", "بدر", "العبور", "المستقبل سيتي", "العاصمة الإدارية الجديدة",
+  "الدقي", "المهندسين", "العجوزة", "إمبابة", "بولاق", "الوراق", "أوسيم",
+  "الهرم", "فيصل", "الطالبية", "بولاق الدكرور", "أرض اللواء", "الجيزة", "العياط",
+  "6 أكتوبر", "الشيخ زايد", "الحي المتميز", "حدائق أكتوبر", "دريم لاند",
+  "البدرشين", "الصف", "أطفيح", "منشأة القناطر", "القناطر الخيرية", "شبين القناطر"
+];
+
+async function importGreaterCairoZones(){
+  if(!confirm(t('cairoZonesConfirm'))) return;
+  const btn = document.getElementById('importCairoZonesBtn');
+  if(btn) btn.disabled = true;
+  showToast(t('importingZones'));
+  try{
+    const existingNames = new Set(deliveryZonesCache.map(z=> (z.name||'').trim()));
+    const namesToAdd = [...new Set(GREATER_CAIRO_ZONES)].filter(n=> !existingNames.has(n));
+    let batch = db.batch();
+    let opsInBatch = 0;
+    for(const name of namesToAdd){
+      const ref = deliveryZonesCol().doc();
+      batch.set(ref, { name, fee: 0, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      opsInBatch++;
+      if(opsInBatch === 400){ await batch.commit(); batch = db.batch(); opsInBatch = 0; }
+    }
+    if(opsInBatch > 0) await batch.commit();
+    showToast(t('cairoZonesImported'));
+    await loadDeliveryZones();
+  }catch(e){
+    console.error('importGreaterCairoZones error', e);
+    showToast(e.message);
+  }finally{
+    if(btn) btn.disabled = false;
   }
 }
 
