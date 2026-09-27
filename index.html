@@ -3571,7 +3571,7 @@ function buildTempOrdersTable(){
   const rows = ordersCache.map(o=>{
     const itemsSummary = (o.items||[]).map(it=> `${it.name} x${it.qty}`).join(', ');
     const dateStr = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '';
-    return [dateStr, branchNameById(o.branchId), itemsSummary, Number(o.total||0).toFixed(2), t('payment_'+(o.paymentMethod||'cash')), t('status_'+(o.status||'pending'))];
+    return [dateStr, branchNameById(o.branchId), itemsSummary, Number(o.total||0).toFixed(2), t(paymentMethodLabelKey(o.paymentMethod||'cash')), t('status_'+(o.status||'pending'))];
   });
   buildTempExportTable('ordersExportTable', [t('colDate'), t('colBranch'), t('orderItemsSummary'), t('colTotal'), t('paymentMethod'), t('colStatus')], rows);
 }
@@ -4556,13 +4556,38 @@ async function confirmCashHandedToTill(orderId){
   }
 }
 
+// Payment methods that are NOT physical cash sitting in the till or a driver's pocket:
+// card terminal, e-wallet, and prepaid bank transfer are all settled elsewhere. Every
+// other value counts as cash for till-reconciliation purposes — importantly this
+// includes 'cod' (customer-order.html's online "cash on delivery" orders), not just the
+// literal 'cash' string used by orders created from this admin panel. Before this
+// helper existed, shift totals only recognized 'cash' exactly, so a 'cod' order showed
+// up fine in the general reports (which sum every order regardless of method) but
+// silently dropped out of the shift's expected-cash and total-sales figures — money the
+// person could see in the reports page but that never made the shift balance.
+const NON_CASH_PAYMENT_METHODS = new Set(['card','wallet','bank_transfer']);
+function isCashPayment(o){
+  return !NON_CASH_PAYMENT_METHODS.has(o.paymentMethod || 'cash');
+}
+
+// Display label for a payment method value — distinct from isCashPayment's cash/non-cash
+// grouping, since 'cash' (in-person) and 'cod' (online, paid to the driver) are both
+// "cash" for till purposes but should still read differently in an orders/transactions list.
+function paymentMethodLabelKey(method){
+  if(method === 'card') return 'paymentCard';
+  if(method === 'wallet') return 'paymentWallet';
+  if(method === 'bank_transfer') return 'paymentBankTransfer';
+  if(method === 'cod') return 'paymentCod';
+  return 'paymentCash';
+}
+
 // Whether a cash order's money should count toward what SHOULD physically be in the
 // till right now. Dine-in/takeaway cash is paid straight at the register, so it counts
 // the moment the order exists. Delivery COD cash is in the driver's pocket until
 // confirmCashHandedToTill runs — counting it earlier would make the drawer count look
 // right on paper while actually being short in reality.
 function isCashCountedInTill(o){
-  if((o.paymentMethod||'cash') !== 'cash') return false;
+  if(!isCashPayment(o)) return false;
   if(o.orderType !== 'delivery') return true;
   return !!o.cashHandedToTill;
 }
@@ -4648,7 +4673,7 @@ function renderArchiveTable(){
     const dateStr = closedAt ? closedAt.toLocaleString(currentLang==='ar'?'ar-EG':'en-US') : '—';
     const branch = branchesCache.find(b=> b.id === o.branchId);
     const typeLabel = t(o.orderType === 'dine-in' ? 'dineIn' : o.orderType === 'takeaway' ? 'takeaway' : 'delivery');
-    const paymentLabel = t(o.paymentMethod === 'card' ? 'paymentCard' : o.paymentMethod === 'wallet' ? 'paymentWallet' : 'paymentCash');
+    const paymentLabel = t(paymentMethodLabelKey(o.paymentMethod || 'cash'));
     const statusBadge = o.status === 'delivered'
       ? `<span class="stock-badge" style="background:#f0fdf4; color:var(--ok);">${t('status_delivered')}</span>`
       : `<span class="stock-badge" style="background:#fef2f2; color:var(--danger);">${t('status_cancelled')}</span>`;
@@ -6324,12 +6349,12 @@ function computeShiftSummary(shift){
     return db_ - da; // newest first, matching every other table in the app
   });
 
-  const breakdown = { cash:0, card:0, wallet:0 };
+  const breakdown = { cash:0, card:0, wallet:0, bank_transfer:0 };
   let cashOutstandingWithDrivers = 0; // cash orders where the driver hasn't handed it to the till yet
   shiftOrders.forEach(o=>{
-    const method = o.paymentMethod || 'cash';
-    breakdown[method] = (breakdown[method]||0) + Number(o.total||0);
-    if(method === 'cash' && !isCashCountedInTill(o)){
+    const bucket = isCashPayment(o) ? 'cash' : (o.paymentMethod || 'card');
+    breakdown[bucket] = (breakdown[bucket]||0) + Number(o.total||0);
+    if(bucket === 'cash' && !isCashCountedInTill(o)){
       cashOutstandingWithDrivers += Number(o.total||0);
     }
   });
@@ -6339,8 +6364,10 @@ function computeShiftSummary(shift){
   // "what should be in the drawer if I counted it this second", so it only includes
   // cash that's actually confirmed back at the till (see isCashCountedInTill) —
   // otherwise the drawer would look right on paper while a driver still has cash in
-  // their pocket that hasn't been handed over.
-  const totalSales = breakdown.cash + breakdown.card + breakdown.wallet;
+  // their pocket that hasn't been handed over. Summing every bucket (not just the
+  // three pre-seeded ones) means an unexpected/legacy payment-method string still
+  // lands in the total instead of silently vanishing from it.
+  const totalSales = Object.values(breakdown).reduce((sum,v)=> sum + v, 0);
   const cashInTill = breakdown.cash - cashOutstandingWithDrivers;
   const expectedCash = Number(shift.openingCash||0) + cashInTill;
 
@@ -6480,7 +6507,7 @@ function openShiftTransactionsModal(shiftId){
     tbody.innerHTML = summary.orders.map(o=>{
       const timeStr = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleTimeString(currentLang==='ar'?'ar-EG':'en-US', {hour:'2-digit', minute:'2-digit'}) : '—';
       const typeLabel = t(o.orderType === 'dine-in' ? 'dineIn' : o.orderType === 'takeaway' ? 'takeaway' : 'delivery');
-      const paymentLabel = t(o.paymentMethod === 'card' ? 'paymentCard' : o.paymentMethod === 'wallet' ? 'paymentWallet' : 'paymentCash');
+      const paymentLabel = t(paymentMethodLabelKey(o.paymentMethod || 'cash'));
       return `<tr>
         <td style="white-space:nowrap; font-size:12px;">${timeStr}</td>
         <td>#${o.id.slice(0,6).toUpperCase()}</td>
@@ -7424,14 +7451,13 @@ function renderPaymentMethodRevenue(orders){
 
   const byMethod = { cash:{count:0,revenue:0}, card:{count:0,revenue:0}, wallet:{count:0,revenue:0} };
   orders.forEach(o=>{
-    const method = o.paymentMethod || 'cash';
+    const method = isCashPayment(o) ? 'cash' : (o.paymentMethod || 'card');
     if(!byMethod[method]) byMethod[method] = { count:0, revenue:0 };
     byMethod[method].count += 1;
     byMethod[method].revenue += (o.total||0);
   });
 
   const totalRevenue = Object.values(byMethod).reduce((sum,m)=> sum + m.revenue, 0);
-  const labelKey = { cash:'paymentCash', card:'paymentCard', wallet:'paymentWallet' };
   const rows = Object.entries(byMethod)
     .filter(([,m])=> m.count > 0)
     .sort((a,b)=> b[1].revenue - a[1].revenue);
@@ -7445,7 +7471,7 @@ function renderPaymentMethodRevenue(orders){
   tbody.innerHTML = rows.map(([method,m])=>{
     const pct = totalRevenue > 0 ? Math.round((m.revenue/totalRevenue)*100) : 0;
     return `<tr>
-      <td>${t(labelKey[method] || method)}</td>
+      <td>${t(paymentMethodLabelKey(method))}</td>
       <td>${m.count}</td>
       <td>${m.revenue.toFixed(2)}</td>
       <td>${pct}%</td>
